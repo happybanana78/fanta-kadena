@@ -1,0 +1,726 @@
+;;;; ------------------------------------------------------------
+;;;; game-session.repl
+;;;; REPL script to test the game-session contract
+;;;; ------------------------------------------------------------
+
+;; -----------------------------------------------------------------
+;; Step 1: Prepare env data
+;; -----------------------------------------------------------------
+(begin-tx)
+
+(env-data {
+  "game-admin-ks": { "keys": ["admin-key"], "pred": "keys-all" },
+  "namespace-keyset": { "keys": [], "pred": "keys-all" },
+  "creator-ks": { "keys": ["creator-key"], "pred": "keys-all" }, 
+  "alice-ks": { "keys": ["alice-key"], "pred": "keys-all" },
+  "bob-ks": { "keys": ["bob-key"], "pred": "keys-all" },
+  "wrong-ks": { "keys": ["wrong-key"], "pred": "keys-all" },
+  "upgrade": false
+})
+
+(define-namespace "free" (read-keyset "namespace-keyset") (read-keyset "namespace-keyset"))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 2: Deploy the modules and create/fund initial accounts
+;; -----------------------------------------------------------------
+(begin-tx "load modules")
+
+(load "fungible-v2.pact")
+(load "fungible-xchain-v1.pact")
+(load "coin-v5.pact")
+
+(create-table coin.coin-table)
+(create-table coin.allocation-table)
+
+(load "create_game.pact")
+
+;; Create accounts
+(coin.create-account "game-treasury" (read-keyset "game-admin-ks"))
+(coin.create-account "session-creator" (read-keyset "creator-ks"))
+(coin.create-account "alice" (read-keyset "alice-ks"))
+(coin.create-account "bob" (read-keyset "bob-ks"))
+
+;; Fund accounts
+(test-capability (coin.CREDIT "alice"))
+(coin.credit "alice" (read-keyset "alice-ks") 1000.0)
+
+(test-capability (coin.CREDIT "bob"))
+(coin.credit "bob" (read-keyset "bob-ks") 8.0)
+
+(test-capability (coin.CREDIT "session-creator"))
+(coin.credit "session-creator" (read-keyset "creator-ks") 1000.0)
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 3: Create a session
+;; -----------------------------------------------------------------
+(begin-tx)
+
+(env-sigs [
+  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+])
+
+;; Game session with far expiration
+(free.game-session.create-session
+  "sess-1"
+  "Trivia Night"
+  "Who wins the final?"
+  "2025-09-01T00:00:00Z"
+  ["Gianni" "Mario" "Charlie" "Gigi"]
+  2.0
+  (read-keyset "creator-ks")
+  "session-creator")
+
+(commit-tx)
+
+(begin-tx)
+
+(env-sigs [
+  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+])
+
+;; Game session with expired expiration
+(free.game-session.create-session
+  "sess-2"
+  "Trivia Night"
+  "Who wins the final?"
+  "2024-09-01T00:00:00Z"
+  ["Gianni" "Mario" "Charlie" "Gigi"]
+  2.0
+  (read-keyset "creator-ks")
+  "session-creator")
+
+;;(print (coin.get-balance "session-creator"))
+
+(commit-tx)
+
+(begin-tx)
+
+(env-sigs [
+  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+])
+
+;; Game session with expired expiration with no result pusblished and no votes ('correct' still at -1)
+(free.game-session.create-session
+  "sess-3"
+  "Trivia Night"
+  "Who wins the final?"
+  "2024-09-01T00:00:00Z"
+  ["Gianni" "Mario" "Charlie" "Gigi"]
+  2.0
+  (read-keyset "creator-ks")
+  "session-creator")
+
+(commit-tx)
+
+(begin-tx)
+
+(env-sigs [
+  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+])
+
+;; Game session with expired expiration with no result pusblished with 1 vote ('correct' still at -1)
+(free.game-session.create-session
+  "sess-4"
+  "Trivia Night"
+  "Who wins the final?"
+  "2024-09-01T00:00:00Z"
+  ["Gianni" "Mario" "Charlie" "Gigi"]
+  2.0
+  (read-keyset "creator-ks")
+  "session-creator")
+
+(commit-tx)
+
+(begin-tx)
+
+(env-sigs [
+  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+])
+
+;; Game session with refusal at result voting
+(free.game-session.create-session
+  "sess-5"
+  "Trivia Night"
+  "Who wins the final?"
+  "2024-09-01T00:00:00Z"
+  ["Gianni" "Mario" "Charlie" "Gigi"]
+  2.0
+  (read-keyset "creator-ks")
+  "session-creator")
+
+(commit-tx)
+
+(begin-tx)
+
+(env-sigs [
+  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+])
+
+;; Game session with a lot of votes but not enotgh result votes to reach quorum
+(free.game-session.create-session
+  "sess-6"
+  "Trivia Night"
+  "Who wins the final?"
+  "2024-09-01T00:00:00Z"
+  ["Gianni" "Mario" "Charlie" "Gigi"]
+  2.0
+  (read-keyset "creator-ks")
+  "session-creator")
+
+(commit-tx)
+
+;; Test user not having rnoght funds to create a game
+(begin-tx)
+
+(env-sigs [
+  { "key": "bob-key", "caps": [(coin.TRANSFER "bob" "game-treasury" 10.0)] }
+])
+
+(expect-failure "Not enogth balance to create a game" "Not enough balance." 
+  (free.game-session.create-session
+    "sess-7"
+    "Trivia Night"
+    "Who wins the final?"
+    "2024-09-01T00:00:00Z"
+    ["Gianni" "Mario" "Charlie" "Gigi"]
+    2.0
+    (read-keyset "bob-ks")
+    "bob"))
+
+(commit-tx)
+
+;; Test account does not exist
+(begin-tx)
+
+(env-sigs [
+  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+])
+
+(expect-failure "Account not existing" "Account does not exist." 
+  (free.game-session.create-session
+    "sess-7"
+    "Trivia Night"
+    "Who wins the final?"
+    "2024-09-01T00:00:00Z"
+    ["Gianni" "Mario" "Charlie" "Gigi"]
+    2.0
+    (read-keyset "creator-ks")
+    "wrong-account"))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 4: Inspect the session
+;; -----------------------------------------------------------------
+(begin-tx)
+
+(free.game-session.get-session "sess-1")
+(free.game-session.get-session "sess-2")
+(free.game-session.get-session "sess-3")
+(free.game-session.get-session "sess-4")
+(free.game-session.get-session "sess-5")
+(free.game-session.get-session "sess-6")
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 5: Cast some votes
+;; -----------------------------------------------------------------
+
+;; Cast first vote
+(begin-tx)
+
+(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+
+(expect "Voting success" true
+    (free.game-session.vote_option "sess-1" "alice" (read-keyset "alice-ks") 2))
+
+(commit-tx)
+
+;; Cast first vote for different game session
+(begin-tx)
+
+(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+
+(expect "Voting success" true
+    (free.game-session.vote_option "sess-2" "alice" (read-keyset "alice-ks") 2))
+
+(commit-tx)
+
+;; Cast first vote and try passing a non existing option
+(begin-tx)
+
+(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+
+(expect-failure "Voting fail" "Correct index out of range."
+    (free.game-session.vote_option "sess-1" "alice" (read-keyset "alice-ks") 12))
+
+(commit-tx)
+
+;; Cast second vote
+(begin-tx)
+
+(env-sigs [ { "key": "bob-key", "caps": [(coin.TRANSFER "bob" "game-treasury" 2.0)] } ])
+
+(expect "Voting success" true
+    (free.game-session.vote_option "sess-1" "bob" (read-keyset "bob-ks") 3))
+
+(commit-tx)
+
+;; Try voting again
+(begin-tx)
+
+(env-sigs [ { "key": "bob-key", "caps": [(coin.TRANSFER "bob" "game-treasury" 2.0)] } ])
+
+(expect-failure "Already voted"
+    "Already voted on this session."
+    (free.game-session.vote_option "sess-1" "bob" (read-keyset "bob-ks") 3))
+
+(commit-tx)
+
+;; Cast first vote for sess-4
+(begin-tx)
+
+(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+
+(expect "Voting success" true
+    (free.game-session.vote_option "sess-4" "alice" (read-keyset "alice-ks") 2))
+
+(commit-tx)
+
+;; Cast first vote for sess-5
+(begin-tx)
+
+(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+
+(expect "Voting success" true
+    (free.game-session.vote_option "sess-5" "alice" (read-keyset "alice-ks") 2))
+
+(commit-tx)
+
+;; Cast first vote for sess-6
+(begin-tx)
+
+(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+
+(expect "Voting success" true
+    (free.game-session.vote_option "sess-6" "alice" (read-keyset "alice-ks") 2))
+
+(commit-tx)
+
+;; Cast second vote for sess-6
+(begin-tx)
+
+(env-sigs [ { "key": "bob-key", "caps": [(coin.TRANSFER "bob" "game-treasury" 2.0)] } ])
+
+(expect "Voting success" true
+    (free.game-session.vote_option "sess-6" "bob" (read-keyset "bob-ks") 2))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 6: Simulate voting after revealed is set to true
+;; -----------------------------------------------------------------
+(begin-tx)
+
+(env-sigs [
+  { "key": "admin-key", "caps": [] }
+])
+
+(acquire-module-admin free.game-session)
+
+(write free.game-session.sessions "sess-1"
+  (let ((s (read free.game-session.sessions "sess-1")))
+    { 'creator-guard:      (at 'creator-guard s)
+    , 'creator-account:    (at 'creator-account s)
+    , 'name:               (at 'name s)
+    , 'description:        (at 'description s)
+    , 'expiration:         (at 'expiration s)
+    , 'options:            (at 'options s)
+    , 'correct:            1
+    , 'participation-fee:  (at 'participation-fee s)
+    , 'result-voted:       (at 'result-voted s)
+    , 'invalidated:        (at 'invalidated s)
+    , 'creator-slashed:    (at 'creator-slashed s)
+    , 'total-winners:      (at 'total-winners s)
+    , 'result-released-at: (at 'result-released-at s)
+    , 'created-at:         (at 'created-at s)
+    }))
+
+(commit-tx)
+
+;; Cast vote after voting is closed
+(begin-tx)
+
+(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+
+(expect-failure "Voting closed"
+    "Correct option already revealed."
+    (free.game-session.vote_option "sess-1" "alice" (read-keyset "alice-ks") 2))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 7: Get single vote
+;; -----------------------------------------------------------------
+(begin-tx)
+
+(let* ((my-vote (free.game-session.get-vote "sess-1" "alice")))
+  (expect "Vote object is of type object"
+          "object"
+          (typeof my-vote))
+  ;;(print "Alice Vote")
+  ;;(print my-vote)
+)
+
+;; Test with vote key that does not exist
+(expect-failure "Vote does not exist"
+  "Vote not found."
+  (free.game-session.get-vote "sess-1" "wrong-key"))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 8: Get all the votes for a single session
+;; -----------------------------------------------------------------
+(begin-tx)
+
+(let* ((votes (free.game-session.get-session-votes "sess-1")))
+  (expect "Votes is a list" "list" (typeof votes))
+
+  (if (> (length votes) 0)
+        (let ((first-vote (at 0 votes)))
+          (expect "Each element is an object" "object" (typeof first-vote)))
+        false
+        ;;(print "No votes found.")
+        )
+)
+
+;; Test with session key that does not exist
+(expect-failure "No votes found"
+  "Session does not exist."
+  (free.game-session.get-session-votes "sess-wrong"))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 9: Get all game sessions filtered by expiration date
+;; -----------------------------------------------------------------
+(begin-tx)
+
+(let* ((sessions (free.game-session.get-all-sessions false)))
+  (expect "Sessions is a list" "list" (typeof sessions))
+
+  (if (> (length sessions) 0)
+          (let ((first-session (at 0 sessions)))
+            (expect "Each element is an object" "object" (typeof first-session)))
+          false
+          ;;(print "No sessions found.")
+          )
+)
+
+;; Try with no results
+(let* ((sessions (free.game-session.get-all-sessions true)))
+  (expect "Sessions is a list" "list" (typeof sessions))
+
+  (if (> (length sessions) 0)
+          (let ((first-session (at 0 sessions)))
+            (expect "Each element is an object" "object" (typeof first-session)))
+          (print "No sessions found."))
+)
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 10: Reveal correct answer
+;; -----------------------------------------------------------------
+(begin-tx)
+
+;; Try with wrong keyset that is not the game session creator
+(env-sigs [
+  { "key": "wrong-key", "caps": [] }
+])
+
+(expect-failure "Wrong keyset" "Keyset failure (keys-all): [creator-...]" (free.game-session.reveal-correct "sess-1" 0))
+
+;; Try with session that is not expired
+(env-sigs [
+  { "key": "creator-key", "caps": [] }
+])
+
+(expect-failure "Session not expired" "Session has not yet expired; cannot reveal." (free.game-session.reveal-correct "sess-1" 0))
+
+;; Try relealing after time is up
+(env-chain-data {
+  "block-time": (time "2025-09-01T12:00:00Z")
+})
+
+(env-sigs [
+  { "key": "creator-key", "caps": [] }
+])
+
+(expect-failure "Wrong option index" "Too late to reveal." (free.game-session.reveal-correct "sess-2" 0))
+
+;; Try index out of rage wrong option
+(env-chain-data {
+  "block-time": (time "2024-09-01T12:00:00Z")
+})
+
+(env-sigs [
+  { "key": "creator-key", "caps": [] }
+])
+
+(expect-failure "Wrong option index" "Correct index out of range." (free.game-session.reveal-correct "sess-2" 10))
+
+;; Try success
+(expect "Success reveal sess-2:" true (free.game-session.reveal-correct "sess-2" 2))
+
+(expect "Success reveal sess-5:" true (free.game-session.reveal-correct "sess-5" 0))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 11: Vote for the result
+;; -----------------------------------------------------------------
+(begin-tx)
+
+;; try with user who didn't partecipate in the initial voting
+(expect-failure "User not patecipated:" "You didn't partecipate in this game session." 
+  (free.game-session.vote-result "sess-2" "bob" true))
+
+;; try success
+(expect "Vote result success sess-2:" true (free.game-session.vote-result "sess-2" "alice" true))
+
+(expect "Vote result success sess-5:" true (free.game-session.vote-result "sess-5" "alice" false))
+
+(commit-tx) 
+
+;; -----------------------------------------------------------------
+;; Step 12: Check for session invalidation
+;; -----------------------------------------------------------------
+(begin-tx)
+
+;; Expiration date not reached scenario
+(expect-failure "Expiration not reached" "Games session expiration date not reached." 
+  (free.game-session.handle-session-invalidation "sess-1"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Creator didn't publish a result in time and gets slashed scenario
+(env-sigs [
+  { "key": "admin-key", "caps": [
+    (free.game-session.TREASURY) 
+    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
+    (coin.TRANSFER "game-treasury" "alice" 2.0)
+  ] }
+])
+
+(env-chain-data {
+  "block-time": (time "2025-09-02T12:00:00Z")
+})
+
+(expect "Game invalidate and creator funds slashed" "Game invalidated." 
+  (free.game-session.handle-session-invalidation "sess-4"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Creator has still grace period time to publish result scenario
+(env-chain-data {
+  "block-time": (time "2024-09-01T12:00:00Z")
+})
+
+(expect-failure "Expiration not reached" "Creator has still time to publish." 
+  (free.game-session.handle-session-invalidation "sess-2"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Creator managed to publish result in time scenario
+(env-chain-data {
+  "block-time": (time "2024-09-02T12:00:00Z")
+})
+
+(expect-failure "Expiration not reached" "Creator has published a result in time." 
+  (free.game-session.handle-session-invalidation "sess-2"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Less than 1 player vote scenario (refund)
+(env-sigs [
+  { "key": "admin-key", "caps": [
+    (free.game-session.TREASURY) 
+    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
+  ] }
+])
+
+(env-chain-data {
+  "block-time": (time "2024-09-02T12:00:00Z")
+})
+
+(expect "No votes" "No votes, game refunded." 
+  (free.game-session.handle-session-invalidation "sess-3"))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 13: Check if result was voted
+;; -----------------------------------------------------------------
+(begin-tx)
+
+;; Already closed game scenario
+(expect-failure "Game already settled" "The game was already settled." 
+  (free.game-session.check-result-voting-ended "sess-3"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Creator has still grace period time to publish result scenario
+(env-chain-data {
+  "block-time": (time "2024-09-01T12:00:00Z")
+})
+
+(expect-failure "Still time to vote" "There is still time to vote." 
+  (free.game-session.check-result-voting-ended "sess-2"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Result vote refused scenario
+(env-sigs [
+  { "key": "admin-key", "caps": [
+    (free.game-session.TREASURY) 
+    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
+    (coin.TRANSFER "game-treasury" "alice" 2.0)
+  ] }
+])
+
+(env-chain-data {
+  "block-time": (time "2024-09-02T12:00:00Z")
+})
+
+(expect "Vote refused" "Result vote refused." 
+  (free.game-session.check-result-voting-ended "sess-5"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Quorum not reached scenario
+(env-sigs [
+  { "key": "admin-key", "caps": [
+    (free.game-session.TREASURY) 
+    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
+    (coin.TRANSFER "game-treasury" "alice" 2.0)
+    (coin.TRANSFER "game-treasury" "bob" 2.0)
+  ] }
+])
+
+(expect "Impossible quorum" "Quorum not reached."
+  (free.game-session.check-result-voting-ended "sess-6"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Success scenario
+(env-sigs [
+  { "key": "admin-key", "caps": [
+    (free.game-session.TREASURY) 
+    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
+  ] }
+])
+
+(expect "Success" "Voting successful."
+  (free.game-session.check-result-voting-ended "sess-2"))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 14: Pay player reward
+;; -----------------------------------------------------------------
+(begin-tx)
+
+;; Lock time not expired scenario
+(env-sigs [
+  { "key": "alice-key", "caps": [] }
+])
+
+(env-chain-data {
+  "block-time": (time "2024-09-03T00:00:00Z")
+})
+
+(expect-failure "Lock period not passed" "Reward lock period of 30 days is not passed yet."
+  (free.game-session.claim-player-reward "sess-2" "alice"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Success scenario
+(env-sigs [
+  { "key": "alice-key", "caps": [] },
+  { "key": "admin-key", "caps": [
+    (free.game-session.TREASURY) 
+    (coin.TRANSFER "game-treasury" "alice" 2.0)
+  ] }
+])
+
+(env-chain-data {
+  "block-time": (time "2024-11-01T00:00:00Z")
+})
+
+(expect "Success" true
+  (free.game-session.claim-player-reward "sess-2" "alice"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Reward already redeemed scenario
+(env-sigs [
+  { "key": "alice-key", "caps": [] }
+])
+
+(expect-failure "Reward already redeemed" "Reward already redeemed."
+  (free.game-session.claim-player-reward "sess-2" "alice"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Record not found scenario
+(expect-failure "Record not found" "Player vote does not exist."
+  (free.game-session.claim-player-reward "sess-2" "bob"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Wrong player guard scenario
+(env-sigs [
+  { "key": "bob-key", "caps": [] }
+])
+
+(expect-failure "Wrong guard" "Keyset failure (keys-all): [alice-ke...]"
+  (free.game-session.claim-player-reward "sess-2" "alice"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; -----------------------------------------------------------------
+;; Step 15: Claim creator funds
+;; -----------------------------------------------------------------

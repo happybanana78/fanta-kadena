@@ -1,0 +1,591 @@
+;; --------------------------------------------------------------------
+;; Module: game-session
+;; Pact smart contract for time-gated game session creation + voting + reveal
+;; Community self-report voting of right/wrong after reveal.
+;;
+;; TODO: if user refuses result 3 times in a row all rewards get moved to treasury and account gets black-listed
+;; TODO: add whitelist and max users on game creation
+;; --------------------------------------------------------------------
+
+(namespace 'free)
+
+(define-keyset "free.game-admin-ks" (read-keyset "game-admin-ks")) 
+
+(module game-session GOVERNANCE    
+  ;; ------------------------------------------------------------------
+  ;; Basic enviroment
+  ;; ------------------------------------------------------------------
+  (defconst CREATE_GAME_LOCK_AMOUNT:decimal 10.0) ;; amount of KDA user has to lock to create a new game session
+  (defconst GRACE_DAYS:integer 1) ;; days after expiration after which funds get 'burned'
+  (defconst RESULT_VOTING_QUORUM:decimal 0.8)
+  (defconst MINIMUM_SESSION_OPTIONS:integer 2)
+  (defconst PLAYER_REWARD_LOCK_TIME:integer 30)
+
+  ;; ------------------------------------------------------------------
+  ;; Governance
+  ;; ------------------------------------------------------------------
+  (defconst ADMIN_KEYSET:keyset (read-keyset 'game-admin-ks))
+  (defconst TREASURY_ACCOUNT:string "game-treasury")
+  (defconst TREASURY_GUARD:keyset (read-keyset 'game-admin-ks)) 
+
+  (defcap GOVERNANCE () (enforce-keyset ADMIN_KEYSET))
+
+  (defcap TREASURY () (enforce-keyset TREASURY_GUARD))
+
+  ;; ------------------------------------------------------------------
+  ;; Schemas & Tables
+  ;; ------------------------------------------------------------------
+  (defschema session
+    creator-guard:      guard
+    creator-account:    string
+    name:               string
+    description:        string
+    expiration:         time       ;; when the creator is allowed to reveal
+    options:            [string]
+    correct:            integer    ;; index into options (-1 until reveal)
+    participation-fee:  decimal
+    result-voted:       bool
+    invalidated:        bool
+    creator-slashed:    bool
+    total-winners:      integer
+    result-released-at: time
+    created-at:         time
+  )
+
+  (deftable sessions:{session})
+
+  (defschema option_vote
+    session-id:     string
+    voter:          string
+    voter-guard:    guard
+    option:         integer
+    refunded:       bool
+    redeemed-prize: bool
+    slashed:        bool
+    at:             time
+  )
+
+  (deftable option_votes:{option_vote})
+
+  (defschema result_vote
+    session-id:  string
+    voter:       string
+    right:       bool     ;; is the proposed game result by the session creator right?
+    at:          time
+  )
+
+  (deftable result_votes:{result_vote})
+
+  (defschema treasury
+    balance: decimal
+  )
+
+  (deftable treasuries:{treasury})
+
+  (defschema creator-locked
+    owner-guard:   keyset
+    owner-account: string
+    amount:        decimal
+    unlocked:      bool
+    slashed:       bool
+  )
+
+  (deftable creator-locked-balances:{creator-locked})
+
+  ;; ------------------------------------------------------------------
+  ;; General Helpers
+  ;; ------------------------------------------------------------------
+  (defun now:time ()
+    @doc "Get current block time"
+
+    (at 'block-time (chain-data)))
+
+  (defun make-vote-key:string (session-id:string voter:string)
+    @doc "Generate a unique vote key"
+
+    (format "{}|{}" [session-id voter]))
+
+  (defun check-multiple-option-votes (vote-key:string)
+     @doc "Check if account already voted for an option"
+
+     (let ((vote-data (try {} (read option_votes vote-key))))
+               (enforce
+                 (= {} vote-data)
+                 "Already voted on this session."
+               )
+             ))
+
+  (defun check-multiple-result-votes (vote-key:string)
+     @doc "Check if account already voted for a result"
+
+     (let ((vote-data (try {} (read result_votes vote-key))))
+               (enforce
+                 (= {} vote-data)
+                 "Already voted on this session's result."
+               )
+             ))
+
+  (defun ensure-session-exists (session-id:string)
+      @doc "Check if the provided session id exists."
+
+      (let ((session-data (try {} (read sessions session-id))))
+                (enforce
+                  (!= {} session-data)
+                  "Session does not exist."
+                )
+              ))
+
+  (defun ensure-creator (s:object{session})
+    (enforce-guard (at 'creator-guard s)))
+
+  (defun ensure-voter-participated (session-id:string voter:string)
+      @doc "Check if the voter participated in the game session."
+
+      (let ((voter-key (make-vote-key session-id voter))
+          (voter-data (try {} (read option_votes voter-key))))
+                (enforce
+                  (!= {} voter-data)
+                  "You didn't partecipate in this game session."
+                )
+              ))
+
+  (defun ensure-expired (s:object{session})
+    (enforce (>= (now) (at 'expiration s))
+      "Session has not yet expired; cannot reveal."))
+
+  (defun ensure-not-expired (s:object{session})
+    (enforce (< (now) (at 'expiration s))
+      "Session has already expired."))
+
+  (defun ensure-invalidated (s:object{session})
+    (enforce (at 'invalidated s)
+      "Session is still valid."))
+
+  (defun ensure-not-invalidated (s:object{session})
+    (enforce (not (at 'invalidated s))
+      "Session is no longer valid."))
+
+  (defun ensure-revealed (s:object{session})
+    (enforce (>= (at 'correct s) 0)
+      "Correct option is not revealed yet."))
+
+  (defun ensure-not-revealed (s:object{session})
+    (enforce (= (at 'correct s) -1)
+      "Correct option already revealed."))
+
+  (defun ensure-voter-not-creator (s:object{session} voter-account:string)
+    (enforce (!= (at 'creator-account s) voter-account)
+      "Game session creator can't vote."))
+
+  (defun ensure-index-in-range (opts:[string] idx:integer)
+    (enforce (and (>= idx 0) (< idx (length opts)))
+      "Correct index out of range."))
+
+  (defun ensure-result-voted (s:object{session})
+    (enforce (at 'result-voted s)
+      "Result voting is still open."))
+
+  (defun ensure-result-not-voted (s:object{session})
+    (enforce (not (at 'result-voted s))
+      "Result voting is completed for this session."))
+
+  (defun count-option-votes (session-id:string)
+    (let ((votes (select option_votes ['session-id] (where 'session-id (= session-id)))))
+        (length votes)))
+
+  (defun count-result-votes (session-id:string)
+    (let ((votes (select result_votes ['session-id] (where 'session-id (= session-id)))))
+        (length votes)))
+
+  (defun slash-creator-funds (session-id:string)
+    @doc "Slash game session creator locked funds."
+
+    (require-capability (TREASURY))
+
+    (with-read creator-locked-balances session-id { 
+      'unlocked := unlocked, 
+      'slashed := slashed 
+    }
+      (enforce (not unlocked) "Funds already unlocked.")
+      (enforce (not slashed) "Funds already slashed."))
+
+    (update creator-locked-balances session-id { 'slashed: true }))
+
+  ;; ------------------------------------------------------------------
+  ;; Transaction Helpers
+  ;; ------------------------------------------------------------------
+  (defun deposit-to-treasury (amount:decimal from-account:string)
+    @doc "Deposit funds into the treasury"
+
+    (enforce (> amount 0.0) "Must deposit positive amount.")
+
+    (let* ((bal (try {} (coin.get-balance from-account))))
+      (enforce (!= bal {}) "Account does not exist.")
+      (enforce (>= bal amount) "Not enough balance."))
+
+    (let* ((row (read treasuries "main")))
+      (coin.transfer-create from-account TREASURY_ACCOUNT TREASURY_GUARD amount)
+
+      (update treasuries "main"
+        { 'balance: (+ (at 'balance row) amount) })
+      true))
+
+  (defun withdraw-from-treasury (amount:decimal to-account:string to-account-guard:keyset)
+    @doc "Get funds out from the treasury"
+
+    (require-capability (TREASURY))
+
+    (enforce (> amount 0.0) "Must withdraw positive amount.")
+
+    (enforce (>= (coin.get-balance TREASURY_ACCOUNT) amount) "Not enough funds in treasury.")
+
+    (let* ((row (read treasuries "main")))
+      (coin.transfer-create TREASURY_ACCOUNT to-account to-account-guard amount)
+
+      (update treasuries "main"
+        { 'balance: (- (at 'balance row) amount) })
+      true))
+
+  ;; ------------------------------------------------------------------
+  ;; Public API
+  ;; ------------------------------------------------------------------
+  (defun create-session
+    (session-id:string
+     name:string
+     description:string
+     expiration:string
+     options:[string]
+     participation-fee:decimal
+     creator-ks:keyset
+     creator-account:string)
+     @doc "Create a session. The caller provides their guard (`creator-ks`) so only they can reveal."
+
+    (let ((session-data (try {} (get-session session-id))))
+      (enforce
+        (= {} session-data)
+        "Session ID already exists."
+      )
+    )
+
+    (enforce (>= (length options) MINIMUM_SESSION_OPTIONS)
+      (format "Provide at least {} options." [MINIMUM_SESSION_OPTIONS]))
+
+    (enforce (> (diff-time (time expiration) (now)) 0.0)
+          "Expiration must be in the future.")
+
+    (enforce (> participation-fee 0.0)
+      "Participation fee must be greater then 0.")
+
+    (deposit-to-treasury CREATE_GAME_LOCK_AMOUNT creator-account)
+
+    (write creator-locked-balances session-id
+      { 'owner-guard:   creator-ks
+      , 'owner-account: creator-account
+      , 'amount:        CREATE_GAME_LOCK_AMOUNT
+      , 'unlocked:      false
+      , 'slashed:       false
+      })
+
+    (write sessions session-id
+      { 'creator-guard:      creator-ks
+      , 'creator-account:    creator-account
+      , 'name:               name
+      , 'description:        description
+      , 'expiration:         (time expiration)
+      , 'options:            options
+      , 'correct:            -1
+      , 'participation-fee:  participation-fee
+      , 'result-voted:       false
+      , 'invalidated:        false
+      , 'creator-slashed:    false
+      , 'total-winners:      0
+      , 'result-released-at: (time "1990-09-01T00:00:00Z") ;; default time, counts as null
+      , 'created-at:         (now)
+      })
+
+    session-id
+  )
+
+  (defun vote_option (session-id:string voter-account:string voter-ks:keyset option-index:integer)
+    @doc "Cast a vote with the option you think is gonna be correct."
+
+    ;; Validate option
+    (let* ((current-session (get-session session-id)) 
+      (key (make-vote-key session-id voter-account)))
+ 
+        ;; Check if option exists
+        (ensure-index-in-range (at 'options current-session) option-index)
+
+        ;; Check that voting is still allowed
+        (ensure-not-expired current-session)
+        (ensure-not-invalidated current-session)
+        (ensure-not-revealed current-session)
+
+        ;; Check for double voting or creator voting
+        (ensure-voter-not-creator current-session voter-account)
+        (check-multiple-option-votes key)
+        
+        ;; Pay participation fee
+        (deposit-to-treasury (at 'participation-fee current-session) voter-account)
+          
+        (write option_votes key
+          { 'session-id:     session-id
+          , 'voter:          voter-account
+          , 'voter-guard:    voter-ks
+          , 'option:         option-index
+          , 'refunded:       false
+          , 'redeemed-prize: false
+          , 'slashed:        false
+          , 'at:             (now)
+          })
+        true))
+
+  (defun reveal-correct (session-id:string correct-index:integer)
+      @doc "Allows the session creator to submit a correct answer for the game session."
+
+      (let* ((current-session (get-session session-id)))
+        ;; Check if operation is possible at this point in time
+        (enforce (< (now) (add-time (at 'expiration current-session) (days GRACE_DAYS)))
+            "Too late to reveal.")
+
+        (ensure-creator current-session)
+        (ensure-expired current-session)
+        (ensure-not-revealed current-session)
+        (ensure-index-in-range (at 'options current-session) correct-index)
+
+        (let ((votes (select option_votes (where 'session-id (= session-id))))
+          (winners (filter (lambda (v) (= (at 'option v) correct-index)) votes)))
+
+          (update sessions session-id { 
+            'correct: correct-index, 
+            'total-winners: (length winners), 
+            'result-released-at: (now) 
+          }))
+        true))
+
+  (defun vote-result (session-id:string voter-account:string is-right:bool)
+      @doc "Allows users who pareticpated to vote if the session creator chosen result is correct or not."
+
+      (let* ((current-session (get-session session-id))
+        (vote-key (make-vote-key session-id voter-account)))
+
+        (ensure-voter-not-creator current-session voter-account)
+        (ensure-result-not-voted current-session)
+        (ensure-not-invalidated current-session)
+        (ensure-expired current-session)
+        (ensure-revealed current-session)
+        (ensure-voter-participated session-id voter-account)
+        (check-multiple-result-votes vote-key)
+
+        (write result_votes vote-key
+                { 'session-id:  session-id
+                , 'voter:       voter-account
+                , 'right:       is-right
+                , 'at:          (now)
+                })
+        true))
+
+  (defun handle-session-invalidation (session-id:string)
+    @doc "Function that gets called off-chain regularly to check if the game creator did or didn't publish a correct answer to the game session and to check if at least 1 user participated in the voting."
+    
+    (let* ((current-session (get-session session-id)))      
+      ;; Check if the game is already over
+      (enforce (and (not (at 'invalidated current-session)) (not (at 'result-voted current-session)))
+        "The game was already settled.")
+
+      ;; Check if expiration date was reached
+      (if (<= (at 'expiration current-session) (now))
+        true
+        (enforce false "Games session expiration date not reached."))
+
+      ;; Check if at least 1 player voted
+      (if (<= (count-option-votes session-id) 0)
+        (do
+          (update sessions session-id { 'invalidated: true })
+          "No votes, game refunded.")
+
+        ;; Check result publishing grace time
+        (do (enforce (<= (add-time (at 'expiration current-session) (days GRACE_DAYS)) (now))
+          "Creator has still time to publish.")
+
+          ;; Check if game session creator submitted an answer
+          (enforce (= (at 'correct current-session) -1)
+            "Creator has published a result in time.")
+
+          (with-capability (TREASURY)
+            (slash-creator-funds session-id))
+
+          (update sessions session-id { 'invalidated: true, 'creator-slashed: true })
+
+          "Game invalidated."))))
+
+  (defun check-result-voting-ended (session-id:string)
+    @doc "Function that gets called off-chain regularly to handle game session closure."
+
+    (let* ((current-session (get-session session-id)))
+      ;; Check if the game is already over
+      (enforce (and (not (at 'invalidated current-session)) (not (at 'result-voted current-session)))
+        "The game was already settled.")
+
+      ;; Check if result voting period is over
+      (enforce (<= (add-time (at 'result-released-at current-session) (days GRACE_DAYS)) (now))
+        "There is still time to vote."))
+
+    ;; Check if quorum is reached to proceed with the game reward distribution else refund
+    (let ((total-option-votes (count-option-votes session-id))
+          (total-result-votes (count-result-votes session-id)))
+      (enforce (> (dec total-option-votes) 0.0) "No available option votes for this session.")
+      
+      (if (< (/ (dec total-result-votes) (dec total-option-votes)) RESULT_VOTING_QUORUM)
+          (do     
+            (update sessions session-id { 'invalidated: true })
+            "Quorum not reached.")
+
+            ;; Check if the majority of users agree or not with the proposed result
+            (let ((result-votes (select result_votes ['right] (where 'session-id (= session-id)))))
+              (let ((rights (map (at 'right) result-votes)))
+                (let* ((t-count (length (filter identity rights)))
+                  (f-count (length (filter not rights))))
+                    (if (> t-count f-count)
+                      (do
+                        (update sessions session-id { 'result-voted: true })
+                        "Voting successful.")
+
+                      (do                
+                        (update sessions session-id { 'invalidated: true })
+                        "Result vote refused."))))))))
+
+  (defun claim-creator-funds (session-id:string)
+    @doc "Called off-chain by the game session creator to unlock his funds and get them back if game invalidation wasn't his fault or if the game ended successfully."
+
+    (with-read creator-locked-balances session-id { 
+      'amount := amount, 
+      'owner-account := account, 
+      'owner-guard := guard, 
+      'unlocked := unlocked, 
+      'slashed := slashed 
+    }
+      (enforce-guard guard)
+      (enforce (not slashed) "Funds already slashed.")
+      (enforce (not unlocked) "Funds already unlocked.")
+
+      (let ((current-session (get-session session-id)))
+        (enforce (or (at 'invalidated current-session) (at 'result-voted current-session))
+          "Creator funds are locked until the session is settled."))
+
+      (with-capability (TREASURY)
+        (withdraw-from-treasury amount account guard)))
+
+    (update creator-locked-balances session-id { 'unlocked: true }))
+
+  (defun claim-refund (session-id:string voter-account:string)
+    @doc "Called off-chain by the player to get a refund on an invalidated game session."
+      
+    (let ((key (make-vote-key session-id voter-account)) 
+      (vote (try {} (read option_votes key))) 
+      (current-session (get-session session-id)))     
+        (enforce (!= vote {}) 
+          "Player vote does not exist.")
+
+        (enforce-guard (at 'voter-guard vote))
+
+        (ensure-invalidated current-session)
+
+        (enforce (not (at 'refunded vote)) 
+          "Player already refunded.")
+
+        (let ((amount (at 'participation-fee current-session))
+          (account (at 'voter vote)))
+            (with-capability (TREASURY)
+              (withdraw-from-treasury amount account (at 'voter-guard vote)))
+
+            (update option_votes key { 'refunded: true }))
+        true))
+
+  (defun claim-player-reward (session-id:string voter-account:string)
+    @doc "Gets called off-chain by the player to handle player rewards distribution after locked period is over."
+
+    (let* ((key (make-vote-key session-id voter-account))
+      (vote (try {} (read option_votes key)))
+      (current-session (get-session session-id)) 
+      (correct-option (at 'correct current-session)))
+
+      (enforce (!= vote {}) 
+        "Player vote does not exist.")
+
+      (enforce-guard (at 'voter-guard vote))
+      
+      (ensure-not-invalidated current-session)
+      (ensure-result-voted current-session)
+
+      (enforce (not (at 'redeemed-prize vote)) 
+        "Reward already redeemed.")
+
+      (enforce (not (at 'slashed vote)) 
+        "Reward already slashed for continuous result voting refusal.")
+
+      (enforce (<= (add-time (at 'result-released-at current-session) (days PLAYER_REWARD_LOCK_TIME)) (now)) 
+        (format "Reward lock period of {} days is not passed yet." [PLAYER_REWARD_LOCK_TIME]))
+      
+      (if (!= (at 'option vote) correct-option)
+        (enforce false "Player did not get the result right.")
+        (let ((total-prize (* (at 'participation-fee current-session) (count-option-votes session-id))) 
+          (reward (/ total-prize (dec (at 'total-winners current-session)))))
+            (with-capability (TREASURY)
+              (withdraw-from-treasury reward (at 'voter vote) (at 'voter-guard vote)))
+            
+            (update option_votes key { 'redeemed-prize: true })
+          true))))
+
+  ;; ------------------------------------------------------------------
+  ;; Query helpers
+  ;; ------------------------------------------------------------------
+  (defun get-session:object{session} (session-id:string)
+    @doc "Get the request session object by session id."
+
+    (ensure-session-exists session-id)
+    (read sessions session-id))
+
+  (defun get-vote:object{option_vote} (session-id:string voter:string)
+    @doc "Get the vote object for a specific voter on a specific session."
+
+    (ensure-session-exists session-id)
+    (let ((key (make-vote-key session-id voter)))
+        (let ((vote-data (try {} (read option_votes key))))
+            (enforce
+                (!= {} vote-data)
+                 "Vote not found."
+            )
+            vote-data
+        )))
+
+  (defun get-session-votes:[object{option_vote}] (session-id:string)
+    @doc "Get all the option votes for a specific session."
+
+    (ensure-session-exists session-id)
+    (select option_votes (where 'session-id (= session-id))))
+
+  (defun get-all-sessions:[object{session}] (expired:bool)
+    @doc "Get all the sessions filtered by expiry."
+
+    (if expired
+      (select sessions (where 'expiration (< (now))))
+      (select sessions (where 'expiration (> (now))))))
+)
+
+;; Init contract
+(if (read-msg "upgrade")
+  "skipped tables creation during upgrade" 
+  
+  (do (create-table sessions)
+    (create-table option_votes)
+    (create-table result_votes)
+
+    (create-table treasuries)
+
+    (write treasuries "main" { 'balance: 0.0 })
+
+    (create-table creator-locked-balances)
+    
+    true)
+)
