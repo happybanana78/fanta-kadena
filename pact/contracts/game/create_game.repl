@@ -719,8 +719,112 @@
 
 (commit-tx)
 
-(begin-tx)
-
 ;; -----------------------------------------------------------------
 ;; Step 15: Claim creator funds
 ;; -----------------------------------------------------------------
+(begin-tx)
+
+;; Success scenario
+(env-sigs [
+  { "key": "creator-key", "caps": [] },
+  { "key": "admin-key", "caps": [
+    (free.game-session.TREASURY) 
+    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
+  ] }
+])
+
+(expect "Success" true
+  (free.game-session.claim-creator-funds "sess-2"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Creator funds already claimed scenario
+(env-sigs [
+  { "key": "creator-key", "caps": [] }
+])
+
+(expect-failure "Already claimed funds" "Funds already claimed."
+  (free.game-session.claim-creator-funds "sess-2"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Creator funds already slashed scenario
+(env-sigs [
+  { "key": "creator-key", "caps": [] }
+])
+
+(expect-failure "Slashed funds" "Funds already slashed."
+  (free.game-session.claim-creator-funds "sess-4"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Creator funds locked until session is settled scenario
+(env-sigs [
+  { "key": "creator-key", "caps": [] }
+])
+
+(expect-failure "Locked funds" "Creator funds are locked until the session is settled."
+  (free.game-session.claim-creator-funds "sess-1"))
+
+(commit-tx)
+
+;; -----------------------------------------------------------------
+;; Step 16: Claim player refund
+;; -----------------------------------------------------------------
+(begin-tx)
+
+;; Vote does not exist scenario
+(env-sigs [
+  { "key": "alice-key", "caps": [] }
+])
+
+(expect-failure "No vote" "Player vote does not exist."
+  (free.game-session.claim-refund "sess-1" "alice2"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Session is still valid scenario
+(env-sigs [
+  { "key": "alice-key", "caps": [] }
+])
+
+(expect-failure "Valid session (no refund possible)" "Session is still valid."
+  (free.game-session.claim-refund "sess-1" "alice"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Success scenario
+(env-sigs [
+  { "key": "alice-key", "caps": [] },
+  { "key": "admin-key", "caps": [
+    (free.game-session.TREASURY) 
+    (coin.TRANSFER "game-treasury" "alice" 2.0)
+  ] }
+])
+
+(expect "Success" true
+  (free.game-session.claim-refund "sess-4" "alice"))
+
+(commit-tx)
+
+(begin-tx)
+
+;; Player already refunded scenario
+(env-sigs [
+  { "key": "alice-key", "caps": [] }
+])
+
+(expect-failure "Player already refunded" "Player already refunded."
+  (free.game-session.claim-refund "sess-4" "alice"))
+
+(commit-tx)

@@ -1,7 +1,7 @@
 ;; --------------------------------------------------------------------
 ;; Module: game-session
 ;; Pact smart contract for time-gated game session creation + voting + reveal
-;; Community self-report voting of right/wrong after reveal.
+;; then community self-report voting of right/wrong after reveal.
 ;;
 ;; TODO: if user refuses result 3 times in a row all rewards get moved to treasury and account gets black-listed
 ;; TODO: add whitelist and max users on game creation
@@ -467,7 +467,7 @@
     }
       (enforce-guard guard)
       (enforce (not slashed) "Funds already slashed.")
-      (enforce (not unlocked) "Funds already unlocked.")
+      (enforce (not unlocked) "Funds already claimed.")
 
       (let ((current-session (get-session session-id)))
         (enforce (or (at 'invalidated current-session) (at 'result-voted current-session))
@@ -476,7 +476,9 @@
       (with-capability (TREASURY)
         (withdraw-from-treasury amount account guard)))
 
-    (update creator-locked-balances session-id { 'unlocked: true }))
+    (update creator-locked-balances session-id { 'unlocked: true })
+    
+    true)
 
   (defun claim-refund (session-id:string voter-account:string)
     @doc "Called off-chain by the player to get a refund on an invalidated game session."
