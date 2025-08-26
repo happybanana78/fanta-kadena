@@ -15,7 +15,7 @@
   ;; ------------------------------------------------------------------
   ;; Basic enviroment
   ;; ------------------------------------------------------------------
-  (defconst CREATE_GAME_LOCK_AMOUNT:decimal 10.0) ;; amount of KDA user has to lock to create a new game session
+  (defconst CREATE-GAME-LOCK-AMOUNT:decimal 10.0) ;; amount of KDA user has to lock to create a new game session
   (defconst GRACE_DAYS:integer 1) ;; days after expiration after which funds get 'burned'
   (defconst RESULT_VOTING_QUORUM:decimal 0.8)
   (defconst MINIMUM_SESSION_OPTIONS:integer 2)
@@ -24,13 +24,15 @@
   ;; ------------------------------------------------------------------
   ;; Governance
   ;; ------------------------------------------------------------------
-  (defconst ADMIN_KEYSET:keyset (read-keyset 'game-admin-ks))
-  (defconst TREASURY_ACCOUNT:string "game-treasury")
-  (defconst TREASURY_GUARD:keyset (read-keyset 'game-admin-ks)) 
+  (defconst TREASURY-ACCOUNT:string "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086")
 
-  (defcap GOVERNANCE () (enforce-keyset ADMIN_KEYSET))
+  (defcap GOVERNANCE () (enforce-keyset "free.game-admin-ks"))
 
-  (defcap TREASURY () (enforce-keyset TREASURY_GUARD))
+  (defcap TRANSFER (sender:string receiver:string amount:decimal)
+    (let ((bal (coin.get-balance sender)))
+      (enforce (>= bal amount) "Not enough balance.")))
+
+  (defcap MAGIC-PASS () true)
 
   ;; ------------------------------------------------------------------
   ;; Schemas & Tables
@@ -75,12 +77,6 @@
   )
 
   (deftable result_votes:{result_vote})
-
-  (defschema treasury
-    balance: decimal
-  )
-
-  (deftable treasuries:{treasury})
 
   (defschema creator-locked
     owner-guard:   keyset
@@ -200,7 +196,7 @@
   (defun slash-creator-funds (session-id:string)
     @doc "Slash game session creator locked funds."
 
-    (require-capability (TREASURY))
+    (require-capability (MAGIC-PASS))
 
     (with-read creator-locked-balances session-id { 
       'unlocked := unlocked, 
@@ -214,37 +210,23 @@
   ;; ------------------------------------------------------------------
   ;; Transaction Helpers
   ;; ------------------------------------------------------------------
-  (defun deposit-to-treasury (amount:decimal from-account:string)
-    @doc "Deposit funds into the treasury"
+  (defun deposit-to-treasury (sender:string amount:decimal)
+    @doc "Deposit funds to treasury"
 
-    (enforce (> amount 0.0) "Must deposit positive amount.")
+    (require-capability (TRANSFER sender TREASURY-ACCOUNT amount))
 
-    (let* ((bal (try {} (coin.get-balance from-account))))
-      (enforce (!= bal {}) "Account does not exist.")
-      (enforce (>= bal amount) "Not enough balance."))
+    (coin.transfer sender TREASURY-ACCOUNT amount)
 
-    (let* ((row (read treasuries "main")))
-      (coin.transfer-create from-account TREASURY_ACCOUNT TREASURY_GUARD amount)
+    true)
 
-      (update treasuries "main"
-        { 'balance: (+ (at 'balance row) amount) })
-      true))
+  (defun withdraw-from-treasury (receiver:string amount:decimal)
+    @doc "Withdraw funds from treasury"
 
-  (defun withdraw-from-treasury (amount:decimal to-account:string to-account-guard:keyset)
-    @doc "Get funds out from the treasury"
+    (require-capability (TRANSFER TREASURY-ACCOUNT receiver amount))
 
-    (require-capability (TREASURY))
-
-    (enforce (> amount 0.0) "Must withdraw positive amount.")
-
-    (enforce (>= (coin.get-balance TREASURY_ACCOUNT) amount) "Not enough funds in treasury.")
-
-    (let* ((row (read treasuries "main")))
-      (coin.transfer-create TREASURY_ACCOUNT to-account to-account-guard amount)
-
-      (update treasuries "main"
-        { 'balance: (- (at 'balance row) amount) })
-      true))
+    (coin.transfer TREASURY-ACCOUNT receiver amount)
+    
+    true)
 
   ;; ------------------------------------------------------------------
   ;; Public API
@@ -276,12 +258,13 @@
     (enforce (> participation-fee 0.0)
       "Participation fee must be greater then 0.")
 
-    (deposit-to-treasury CREATE_GAME_LOCK_AMOUNT creator-account)
+    (with-capability (TRANSFER creator-account TREASURY-ACCOUNT CREATE-GAME-LOCK-AMOUNT) 
+      (deposit-to-treasury creator-account CREATE-GAME-LOCK-AMOUNT))
 
     (write creator-locked-balances session-id
       { 'owner-guard:   creator-ks
       , 'owner-account: creator-account
-      , 'amount:        CREATE_GAME_LOCK_AMOUNT
+      , 'amount:        CREATE-GAME-LOCK-AMOUNT
       , 'unlocked:      false
       , 'slashed:       false
       })
@@ -311,7 +294,8 @@
 
     ;; Validate option
     (let* ((current-session (get-session session-id)) 
-      (key (make-vote-key session-id voter-account)))
+      (key (make-vote-key session-id voter-account))
+      (fee (at 'participation-fee current-session)))
  
         ;; Check if option exists
         (ensure-index-in-range (at 'options current-session) option-index)
@@ -326,7 +310,8 @@
         (check-multiple-option-votes key)
         
         ;; Pay participation fee
-        (deposit-to-treasury (at 'participation-fee current-session) voter-account)
+        (with-capability (TRANSFER voter-account TREASURY-ACCOUNT fee) 
+          (deposit-to-treasury voter-account fee))
           
         (write option_votes key
           { 'session-id:     session-id
@@ -412,7 +397,7 @@
           (enforce (= (at 'correct current-session) -1)
             "Creator has published a result in time.")
 
-          (with-capability (TREASURY)
+          (with-capability (MAGIC-PASS)
             (slash-creator-funds session-id))
 
           (update sessions session-id { 'invalidated: true, 'creator-slashed: true })
@@ -473,12 +458,12 @@
         (enforce (or (at 'invalidated current-session) (at 'result-voted current-session))
           "Creator funds are locked until the session is settled."))
 
-      (with-capability (TREASURY)
-        (withdraw-from-treasury amount account guard)))
+      (with-capability (TRANSFER TREASURY-ACCOUNT account amount) 
+        (withdraw-from-treasury account amount))
 
-    (update creator-locked-balances session-id { 'unlocked: true })
+      (update creator-locked-balances session-id { 'unlocked: true })
     
-    true)
+    true))
 
   (defun claim-refund (session-id:string voter-account:string)
     @doc "Called off-chain by the player to get a refund on an invalidated game session."
@@ -498,8 +483,8 @@
 
         (let ((amount (at 'participation-fee current-session))
           (account (at 'voter vote)))
-            (with-capability (TREASURY)
-              (withdraw-from-treasury amount account (at 'voter-guard vote)))
+            (with-capability (TRANSFER TREASURY-ACCOUNT account amount) 
+              (withdraw-from-treasury account amount))
 
             (update option_votes key { 'refunded: true }))
         true))
@@ -532,9 +517,11 @@
       (if (!= (at 'option vote) correct-option)
         (enforce false "Player did not get the result right.")
         (let ((total-prize (* (at 'participation-fee current-session) (count-option-votes session-id))) 
-          (reward (/ total-prize (dec (at 'total-winners current-session)))))
-            (with-capability (TREASURY)
-              (withdraw-from-treasury reward (at 'voter vote) (at 'voter-guard vote)))
+          (reward (/ total-prize (dec (at 'total-winners current-session)))) 
+          (voter-account (at 'voter vote)))
+
+            (with-capability (TRANSFER TREASURY-ACCOUNT voter-account reward) 
+              (withdraw-from-treasury voter-account reward))
             
             (update option_votes key { 'redeemed-prize: true })
           true))))
@@ -579,13 +566,10 @@
 (if (read-msg "upgrade")
   "skipped tables creation during upgrade" 
   
-  (do (create-table sessions)
+  (do 
+    (create-table sessions)
     (create-table option_votes)
     (create-table result_votes)
-
-    (create-table treasuries)
-
-    (write treasuries "main" { 'balance: 0.0 })
 
     (create-table creator-locked-balances)
     

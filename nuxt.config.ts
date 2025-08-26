@@ -9,10 +9,12 @@ export default defineNuxtConfig({
     KADENA_NETWORK_ID: process.env.KADENA_NETWORK_ID,
     KADENA_CHAIN_ID: process.env.KADENA_CHAIN_ID,
     KADENA_HOST: process.env.KADENA_HOST,
+    MODULE_NAME: process.env.MODULE_NAME,
 
     GAS_PAYER_ACCOUNT: process.env.GAS_PAYER_ACCOUNT,
     GAS_PAYER_PUBKEY: process.env.GAS_PAYER_PUBKEY,
-    GAS_PAYER_PRIVKEY: process.env.GAS_PAYER_PRIVKEY,
+
+    TREASURY_ACCOUNT: process.env.TREASURY_ACCOUNT,
   },
 
   css: ['~/assets/css/main.css'],

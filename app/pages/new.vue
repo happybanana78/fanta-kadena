@@ -35,6 +35,16 @@
             :error="errors.expiration"
         />
 
+        <!-- Participation fee -->
+        <DefaultInput
+            id="game_participation_fee"
+            label="Participation Fee"
+            name="participation_fee"
+            v-model="participationFee"
+            type="number"
+            :error="errors.participation_fee"
+        />
+
         <!-- Game options -->
         <MultiAddInput
             id="game_options"
@@ -59,7 +69,7 @@
 </template>
 
 <script setup>
-import {useToast} from "~~/composables/useToast.js";
+import { useToast } from "~~/composables/useToast.js";
 import { useForm } from "vee-validate";
 import { toTypedSchema } from "@vee-validate/zod";
 import { createGameSchema } from "~~/shared/schemas/game/create.js";
@@ -80,6 +90,7 @@ const { handleSubmit, errors, setErrors, isSubmitting, defineField } = useForm({
     name: '',
     description: '',
     expiration: '',
+    participation_fee: 0.1,
     options: [],
   },
 });
@@ -87,16 +98,21 @@ const { handleSubmit, errors, setErrors, isSubmitting, defineField } = useForm({
 const [name] = defineField('name');
 const [description] = defineField('description');
 const [expiration] = defineField('expiration');
+const [participationFee] = defineField('participation_fee');
 const [options] = defineField('options');
 
 const createGameSession = handleSubmit(async (vals) => {
   try {
-    await $fetch('/api/game/create', {
+    const response = await $fetch('/api/game/create', {
       method: 'POST',
       body: vals,
     });
 
-    useToast('Game Session Created!', 'green');
+    if (response.ok) {
+      useToast('Game Session Created!', 'green');
+    } else {
+      useToast('Error during game session creation', 'red');
+    }
   } catch (err) {
     const fieldErrors = err?.data?.data ?? {};
     setErrors(fieldErrors);

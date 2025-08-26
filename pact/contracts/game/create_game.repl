@@ -10,6 +10,7 @@
 
 (env-data {
   "game-admin-ks": { "keys": ["admin-key"], "pred": "keys-all" },
+  "treasury-ks": { "keys": ["3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086"], "pred": "keys-all" },
   "namespace-keyset": { "keys": [], "pred": "keys-all" },
   "creator-ks": { "keys": ["creator-key"], "pred": "keys-all" }, 
   "alice-ks": { "keys": ["alice-key"], "pred": "keys-all" },
@@ -27,6 +28,10 @@
 ;; -----------------------------------------------------------------
 (begin-tx "load modules")
 
+(env-sigs [
+  { "key": "admin-key", "caps": [] }
+])
+
 (load "fungible-v2.pact")
 (load "fungible-xchain-v1.pact")
 (load "coin-v5.pact")
@@ -37,7 +42,7 @@
 (load "create_game.pact")
 
 ;; Create accounts
-(coin.create-account "game-treasury" (read-keyset "game-admin-ks"))
+(coin.create-account "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" (read-keyset "treasury-ks"))
 (coin.create-account "session-creator" (read-keyset "creator-ks"))
 (coin.create-account "alice" (read-keyset "alice-ks"))
 (coin.create-account "bob" (read-keyset "bob-ks"))
@@ -60,7 +65,9 @@
 (begin-tx)
 
 (env-sigs [
-  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+  { "key": "creator-key", "caps": [
+    (coin.TRANSFER "session-creator" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 10.0)
+  ] }
 ])
 
 ;; Game session with far expiration
@@ -79,7 +86,9 @@
 (begin-tx)
 
 (env-sigs [
-  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+  { "key": "creator-key", "caps": [
+    (coin.TRANSFER "session-creator" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 10.0)
+  ] }
 ])
 
 ;; Game session with expired expiration
@@ -100,7 +109,9 @@
 (begin-tx)
 
 (env-sigs [
-  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+  { "key": "creator-key", "caps": [
+    (coin.TRANSFER "session-creator" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 10.0)
+  ] }
 ])
 
 ;; Game session with expired expiration with no result pusblished and no votes ('correct' still at -1)
@@ -119,7 +130,9 @@
 (begin-tx)
 
 (env-sigs [
-  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+  { "key": "creator-key", "caps": [
+    (coin.TRANSFER "session-creator" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 10.0)
+  ] }
 ])
 
 ;; Game session with expired expiration with no result pusblished with 1 vote ('correct' still at -1)
@@ -138,7 +151,9 @@
 (begin-tx)
 
 (env-sigs [
-  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+  { "key": "creator-key", "caps": [
+    (coin.TRANSFER "session-creator" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 10.0)
+  ] }
 ])
 
 ;; Game session with refusal at result voting
@@ -157,7 +172,9 @@
 (begin-tx)
 
 (env-sigs [
-  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+  { "key": "creator-key", "caps": [
+    (coin.TRANSFER "session-creator" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 10.0)
+  ] }
 ])
 
 ;; Game session with a lot of votes but not enotgh result votes to reach quorum
@@ -173,11 +190,13 @@
 
 (commit-tx)
 
-;; Test user not having rnoght funds to create a game
+;; Test user not having enoght funds to create a game
 (begin-tx)
 
 (env-sigs [
-  { "key": "bob-key", "caps": [(coin.TRANSFER "bob" "game-treasury" 10.0)] }
+  { "key": "bob-key", "caps": [
+    (coin.TRANSFER "bob" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 10.0)
+  ] }
 ])
 
 (expect-failure "Not enogth balance to create a game" "Not enough balance." 
@@ -197,10 +216,12 @@
 (begin-tx)
 
 (env-sigs [
-  { "key": "creator-key", "caps": [(coin.TRANSFER "session-creator" "game-treasury" 10.0)] }
+  { "key": "creator-key", "caps": [
+    (coin.TRANSFER "session-creator" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 10.0)
+  ] }
 ])
 
-(expect-failure "Account not existing" "Account does not exist." 
+(expect-failure "Account not existing" "No value found in table coin_coin-table for key: wrong-account" 
   (free.game-session.create-session
     "sess-7"
     "Trivia Night"
@@ -234,7 +255,9 @@
 ;; Cast first vote
 (begin-tx)
 
-(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "alice-key", "caps": [
+  (coin.TRANSFER "alice" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect "Voting success" true
     (free.game-session.vote_option "sess-1" "alice" (read-keyset "alice-ks") 2))
@@ -244,7 +267,9 @@
 ;; Cast first vote for different game session
 (begin-tx)
 
-(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "alice-key", "caps": [
+  (coin.TRANSFER "alice" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect "Voting success" true
     (free.game-session.vote_option "sess-2" "alice" (read-keyset "alice-ks") 2))
@@ -254,7 +279,9 @@
 ;; Cast first vote and try passing a non existing option
 (begin-tx)
 
-(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "alice-key", "caps": [
+  (coin.TRANSFER "alice" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect-failure "Voting fail" "Correct index out of range."
     (free.game-session.vote_option "sess-1" "alice" (read-keyset "alice-ks") 12))
@@ -264,7 +291,9 @@
 ;; Cast second vote
 (begin-tx)
 
-(env-sigs [ { "key": "bob-key", "caps": [(coin.TRANSFER "bob" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "bob-key", "caps": [
+  (coin.TRANSFER "bob" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect "Voting success" true
     (free.game-session.vote_option "sess-1" "bob" (read-keyset "bob-ks") 3))
@@ -274,7 +303,9 @@
 ;; Try voting again
 (begin-tx)
 
-(env-sigs [ { "key": "bob-key", "caps": [(coin.TRANSFER "bob" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "bob-key", "caps": [
+  (coin.TRANSFER "bob" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect-failure "Already voted"
     "Already voted on this session."
@@ -285,7 +316,9 @@
 ;; Cast first vote for sess-4
 (begin-tx)
 
-(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "alice-key", "caps": [
+  (coin.TRANSFER "alice" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect "Voting success" true
     (free.game-session.vote_option "sess-4" "alice" (read-keyset "alice-ks") 2))
@@ -295,7 +328,9 @@
 ;; Cast first vote for sess-5
 (begin-tx)
 
-(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "alice-key", "caps": [
+  (coin.TRANSFER "alice" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect "Voting success" true
     (free.game-session.vote_option "sess-5" "alice" (read-keyset "alice-ks") 2))
@@ -305,7 +340,9 @@
 ;; Cast first vote for sess-6
 (begin-tx)
 
-(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "alice-key", "caps": [
+  (coin.TRANSFER "alice" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect "Voting success" true
     (free.game-session.vote_option "sess-6" "alice" (read-keyset "alice-ks") 2))
@@ -315,7 +352,9 @@
 ;; Cast second vote for sess-6
 (begin-tx)
 
-(env-sigs [ { "key": "bob-key", "caps": [(coin.TRANSFER "bob" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "bob-key", "caps": [
+  (coin.TRANSFER "bob" "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" 2.0)
+] } ])
 
 (expect "Voting success" true
     (free.game-session.vote_option "sess-6" "bob" (read-keyset "bob-ks") 2))
@@ -356,7 +395,7 @@
 ;; Cast vote after voting is closed
 (begin-tx)
 
-(env-sigs [ { "key": "alice-key", "caps": [(coin.TRANSFER "alice" "game-treasury" 2.0)] } ])
+(env-sigs [ { "key": "alice-key", "caps": [] } ])
 
 (expect-failure "Voting closed"
     "Correct option already revealed."
@@ -514,11 +553,7 @@
 
 ;; Creator didn't publish a result in time and gets slashed scenario
 (env-sigs [
-  { "key": "admin-key", "caps": [
-    (free.game-session.TREASURY) 
-    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
-    (coin.TRANSFER "game-treasury" "alice" 2.0)
-  ] }
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [] }
 ])
 
 (env-chain-data {
@@ -558,10 +593,7 @@
 
 ;; Less than 1 player vote scenario (refund)
 (env-sigs [
-  { "key": "admin-key", "caps": [
-    (free.game-session.TREASURY) 
-    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
-  ] }
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [] }
 ])
 
 (env-chain-data {
@@ -600,11 +632,7 @@
 
 ;; Result vote refused scenario
 (env-sigs [
-  { "key": "admin-key", "caps": [
-    (free.game-session.TREASURY) 
-    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
-    (coin.TRANSFER "game-treasury" "alice" 2.0)
-  ] }
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [] }
 ])
 
 (env-chain-data {
@@ -620,12 +648,7 @@
 
 ;; Quorum not reached scenario
 (env-sigs [
-  { "key": "admin-key", "caps": [
-    (free.game-session.TREASURY) 
-    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
-    (coin.TRANSFER "game-treasury" "alice" 2.0)
-    (coin.TRANSFER "game-treasury" "bob" 2.0)
-  ] }
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [] }
 ])
 
 (expect "Impossible quorum" "Quorum not reached."
@@ -637,10 +660,7 @@
 
 ;; Success scenario
 (env-sigs [
-  { "key": "admin-key", "caps": [
-    (free.game-session.TREASURY) 
-    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
-  ] }
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [] }
 ])
 
 (expect "Success" "Voting successful."
@@ -672,9 +692,8 @@
 ;; Success scenario
 (env-sigs [
   { "key": "alice-key", "caps": [] },
-  { "key": "admin-key", "caps": [
-    (free.game-session.TREASURY) 
-    (coin.TRANSFER "game-treasury" "alice" 2.0)
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [
+    (coin.TRANSFER "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" "alice" 2.0)
   ] }
 ])
 
@@ -727,9 +746,8 @@
 ;; Success scenario
 (env-sigs [
   { "key": "creator-key", "caps": [] },
-  { "key": "admin-key", "caps": [
-    (free.game-session.TREASURY) 
-    (coin.TRANSFER "game-treasury" "session-creator" 10.0)
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [
+    (coin.TRANSFER "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" "session-creator" 10.0)
   ] }
 ])
 
@@ -806,9 +824,8 @@
 ;; Success scenario
 (env-sigs [
   { "key": "alice-key", "caps": [] },
-  { "key": "admin-key", "caps": [
-    (free.game-session.TREASURY) 
-    (coin.TRANSFER "game-treasury" "alice" 2.0)
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [
+    (coin.TRANSFER "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086" "alice" 2.0)
   ] }
 ])
 
