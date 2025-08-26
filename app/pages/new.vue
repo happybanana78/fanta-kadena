@@ -1,7 +1,8 @@
 <template>
-  <div v-if="isWallet" class="mt-[100px] flex justify-center items-center">
-    <div class="w-1/2 rounded-lg border-white bg-slate-700 p-5">
-      <form class="space-y-4" @submit.prevent="createGameSession">
+  <div v-if="walletStore.connected" class="mt-[100px] flex justify-center items-center">
+    <div class="w-full max-w-2xl rounded-2xl shadow-2xl bg-slate-700/80 backdrop-blur-md border border-slate-600 p-8 animate-fadeIn">
+      <h2 class="text-3xl font-bold text-center text-white mb-6">Create a Game Session</h2>
+      <form class="space-y-6" @submit.prevent="createGameSession">
 
         <!-- Game name -->
         <DefaultInput
@@ -57,11 +58,18 @@
             @update-options="addOptions"
         />
 
+        <div v-if="generalError" class="flex justify-center mt-2">
+          <p class="text-red-400 text-sm font-medium">{{ generalError }}</p>
+        </div>
+
         <DefaultButton
             text="Create Game Session"
             type="submit"
             :center="true"
             :loading="isSubmitting"
+            :scale="true"
+            :fade="false"
+            class="mt-12"
         />
       </form>
     </div>
@@ -77,12 +85,11 @@ import { createGameSchema } from "~~/shared/schemas/game/create.js";
 import DefaultInput from "~/components/form/inputs/DefaultInput.vue";
 import MultiAddInput from "~/components/form/inputs/MultiAddInput.vue";
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
-import {useGetData} from "~~/composables/useGetData.js";
 import {useWalletStore} from "~~/stores/wallet_store.js";
 
 const walletStore = useWalletStore();
 
-const isWallet = ref(true);
+const generalError = ref('');
 
 const addOptions = (event) => {
   options.value = event;
@@ -117,6 +124,7 @@ const createGameSession = handleSubmit(async (vals) => {
     if (response.ok) {
       useToast('Game Session Created!', 'green');
     } else {
+      generalError.value = response?.error?.message ?? 'Error during game session creation';
       useToast('Error during game session creation', 'red');
     }
   } catch (err) {
@@ -137,4 +145,13 @@ onMounted(() => {
 });
 </script>
 
-<style scoped></style>
+<style scoped>
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+</style>

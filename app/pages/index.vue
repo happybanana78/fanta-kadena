@@ -1,14 +1,15 @@
 <template>
-  <div v-if="isWallet" class="mt-[300px] flex justify-center items-center">
-    <div class="w-[600px] rounded-lg border-white bg-slate-700 p-5">
-      <h2 class="text-white text-xl">Create new game</h2>
-      <hr/>
+  <div v-if="walletStore.connected" class="flex justify-center items-center">
+    <div class="w-full max-w-xl rounded-2xl shadow-2xl bg-slate-700/80 backdrop-blur-md border border-slate-600 p-8 animate-fadeIn">
+      <h2 class="text-white text-2xl font-bold mb-4 text-center">Create a New Game</h2>
+      <hr class="border-slate-600 mb-6" />
       <div class="flex justify-center">
         <nuxt-link
-            class="flex items-center space-x-4 mt-6 bg-white text-slate-900 p-2 rounded-lg hover:bg-slate-300 transition-all ease-in duration-200"
+            class="flex items-center space-x-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-3 rounded-xl shadow-md transition-all ease-out duration-200 hover:scale-105"
             to="/new"
         >
-          New Game
+          <UIcon name="ic:baseline-add-circle-outline" class="size-6" />
+          <span>New Game</span>
         </nuxt-link>
       </div>
     </div>
@@ -16,5 +17,9 @@
 </template>
 
 <script setup>
-const isWallet = ref(true);
+import {useWalletStore} from "~~/stores/wallet_store.js";
+
+const walletStore = useWalletStore();
 </script>
+
+<style scoped></style>

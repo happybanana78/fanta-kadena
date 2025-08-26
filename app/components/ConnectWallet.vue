@@ -1,25 +1,23 @@
 <template>
-  <div>
+  <div class="absolute top-0 right-0">
     <div class="flex justify-end px-5">
-      <button
-        v-if="!walletStore.connected"
-        type="button"
-        class="flex items-center space-x-4 mt-6 bg-white text-slate-900 p-2 rounded-lg hover:bg-slate-300 transition-all ease-in duration-200"
-        @click="toggleDrawer"
-      >
-        Connect Wallet
-      </button>
+      <DefaultButton
+          v-if="!walletStore.connected"
+          text="Connect Wallet"
+          :action="toggleDrawer"
+          class="mt-6"
+      />
     </div>
 
     <div class="flex justify-end px-5">
-      <button
-        v-if="walletStore.connected"
-        type="button"
-        class="flex items-center space-x-4 mt-6 bg-white text-slate-900 p-2 rounded-lg hover:bg-slate-300 transition-all ease-in duration-200"
-        @click="disconnect"
+      <DefaultButton
+          v-if="walletStore.connected"
+          :is-slot="true"
+          :action="disconnect"
+          class="mt-6"
       >
-        Connected <span class="w-20 ml-2 truncate text-ellipsis">{{ walletStore.account }}</span>
-      </button>
+        Connected <span class='ml-2'>{{ walletStore.account.slice(0, 10) }}...</span>
+      </DefaultButton>
     </div>
 
     <div

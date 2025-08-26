@@ -1,20 +1,22 @@
 <template>
-  <div
-    :class="{
-      'flex items-center justify-center': center,
-    }"
-  >
+  <div :class="{ 'flex items-center justify-center': center }">
     <button
-      class="flex items-center cursor-pointer space-x-4 mt-6 bg-white text-slate-900 p-2 rounded-lg hover:bg-slate-300 transition-all ease-in duration-200"
-      :class="{
-        'w-full flex justify-center': full
-      }"
-      :type="type"
-      :value="value"
-      @click="handleClick"
+        class="flex items-center justify-center cursor-pointer space-x-3 bg-indigo-600 text-white px-5 py-3 rounded-xl shadow-md transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-indigo-400 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+        :class="{
+          'w-full': full,
+          'hover:scale-105': scale,
+          'hover:bg-indigo-500': fade,
+        }"
+        :type="type"
+        :value="value"
+        @click="handleClick"
     >
-      <span>{{ text }}</span>
-      <DefaultLoader v-if="loading"/>
+      <span v-if="!isSlot" class="text-sm font-semibold">{{ text }}</span>
+      <DefaultLoader v-if="loading && !isSlot" />
+
+      <span v-if="isSlot">
+        <slot/>
+      </span>
     </button>
   </div>
 </template>
@@ -26,7 +28,10 @@ const props = defineProps({
   text: {
     type: String,
     default: '',
-    required: true,
+  },
+  isSlot: {
+    type: Boolean,
+    default: false,
   },
   action: {
     type: Function,
@@ -50,6 +55,14 @@ const props = defineProps({
   full: {
     type: Boolean,
     default: false,
+  },
+  scale: {
+    type: Boolean,
+    default: false,
+  },
+  fade: {
+    type: Boolean,
+    default: true,
   },
 });
 

@@ -1,9 +1,9 @@
 <template>
-  <div>
+  <div class="space-y-1">
     <label
         v-if="label"
         :for="id"
-        class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+        class="block text-sm font-semibold text-white/90 tracking-wide"
     >
       {{ label }}
     </label>
@@ -12,12 +12,12 @@
         :name="name"
         :value="modelValue"
         :id="id"
-        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
+        class="w-full rounded-xl border border-slate-500 bg-slate-800/80 text-white text-base p-3 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 shadow-sm hover:shadow-md"
         :placeholder="placeholder"
         @input="emit('update:modelValue', $event.target.value)"
     >
-    <div v-if="error" class="flex justify-center mt-1">
-      <p class="text-red-400 text-sm">{{ error }}</p>
+    <div v-if="error" class="flex justify-start mt-1">
+      <p class="text-red-400 text-sm font-medium">{{ error }}</p>
     </div>
   </div>
 </template>
