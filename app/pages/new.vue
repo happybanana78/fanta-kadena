@@ -77,6 +77,10 @@ import { createGameSchema } from "~~/shared/schemas/game/create.js";
 import DefaultInput from "~/components/form/inputs/DefaultInput.vue";
 import MultiAddInput from "~/components/form/inputs/MultiAddInput.vue";
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
+import {useGetData} from "~~/composables/useGetData.js";
+import {useWalletStore} from "~~/stores/wallet_store.js";
+
+const walletStore = useWalletStore();
 
 const isWallet = ref(true);
 
@@ -87,6 +91,7 @@ const addOptions = (event) => {
 const { handleSubmit, errors, setErrors, isSubmitting, defineField } = useForm({
   validationSchema: toTypedSchema(createGameSchema),
   initialValues: {
+    account: '',
     name: '',
     description: '',
     expiration: '',
@@ -95,6 +100,7 @@ const { handleSubmit, errors, setErrors, isSubmitting, defineField } = useForm({
   },
 });
 
+const [account] = defineField('account');
 const [name] = defineField('name');
 const [description] = defineField('description');
 const [expiration] = defineField('expiration');
@@ -119,4 +125,16 @@ const createGameSession = handleSubmit(async (vals) => {
     useToast('Error during game session creation', 'red');
   }
 });
+
+watchEffect(() => {
+  if (errors.value.account && Object.keys(errors.value).length === 1) {
+    useToast(errors.value.account, 'red');
+  }
+});
+
+onMounted(() => {
+  account.value = walletStore.account;
+});
 </script>
+
+<style scoped></style>

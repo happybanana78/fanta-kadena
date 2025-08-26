@@ -15,8 +15,8 @@ export default defineEventHandler(async (event) => {
 
     const parsed = useValidate(createGameSchema, body);
 
-    const creatorAccount = "k:341393b952e197d2e3b01051acdb80b88d9393406c905b3f553fe14c7d27810a";
-    const creatorPubKey = "341393b952e197d2e3b01051acdb80b88d9393406c905b3f553fe14c7d27810a";
+    const creatorAccount = parsed.account;
+    const creatorPubKey = parsed.account.slice(2);
     const parsedDate = useParseDate(parsed.expiration, true);
     const parsedFee = parseFloat(parsed.participation_fee.toFixed(1));
 

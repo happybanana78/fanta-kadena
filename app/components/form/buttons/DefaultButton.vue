@@ -6,7 +6,11 @@
   >
     <button
       class="flex items-center cursor-pointer space-x-4 mt-6 bg-white text-slate-900 p-2 rounded-lg hover:bg-slate-300 transition-all ease-in duration-200"
+      :class="{
+        'w-full flex justify-center': full
+      }"
       :type="type"
+      :value="value"
       @click="handleClick"
     >
       <span>{{ text }}</span>
@@ -36,13 +40,20 @@ const props = defineProps({
     type: String,
     default: 'button',
   },
+  value: {
+    default: null,
+  },
   loading: {
+    type: Boolean,
+    default: false,
+  },
+  full: {
     type: Boolean,
     default: false,
   },
 });
 
 const handleClick = () => {
-  props.action();
+  props.action(props.value);
 }
 </script>

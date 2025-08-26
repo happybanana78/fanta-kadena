@@ -32,7 +32,15 @@
     (let ((bal (coin.get-balance sender)))
       (enforce (>= bal amount) "Not enough balance.")))
 
-  (defcap MAGIC-PASS () true)
+  (defcap CREATOR-FUNDS-AVAILABLE (session-id:string)
+    (with-read creator-locked-balances session-id { 
+        'unlocked := unlocked, 
+        'slashed := slashed 
+      }
+        (enforce (not unlocked) "Funds already unlocked.")
+        (enforce (not slashed) "Funds already slashed.")))
+
+  (defcap INTERNAL () true)
 
   ;; ------------------------------------------------------------------
   ;; Schemas & Tables
@@ -196,16 +204,10 @@
   (defun slash-creator-funds (session-id:string)
     @doc "Slash game session creator locked funds."
 
-    (require-capability (MAGIC-PASS))
+    (require-capability (INTERNAL))
 
-    (with-read creator-locked-balances session-id { 
-      'unlocked := unlocked, 
-      'slashed := slashed 
-    }
-      (enforce (not unlocked) "Funds already unlocked.")
-      (enforce (not slashed) "Funds already slashed."))
-
-    (update creator-locked-balances session-id { 'slashed: true }))
+    (with-capability (CREATOR-FUNDS-AVAILABLE session-id)
+      (update creator-locked-balances session-id { 'slashed: true })))
 
   ;; ------------------------------------------------------------------
   ;; Transaction Helpers
@@ -397,7 +399,7 @@
           (enforce (= (at 'correct current-session) -1)
             "Creator has published a result in time.")
 
-          (with-capability (MAGIC-PASS)
+          (with-capability (INTERNAL)
             (slash-creator-funds session-id))
 
           (update sessions session-id { 'invalidated: true, 'creator-slashed: true })

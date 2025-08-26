@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createGameSchema = z.object({
+    account: z.string().min(10, "An account is required"),
     name: z.string().min(1, "Field is required"),
     description: z.string().min(1, "Field is required"),
     expiration: z.iso.date("Field is required").refine(data =>
