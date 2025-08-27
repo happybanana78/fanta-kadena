@@ -1,5 +1,5 @@
 <template>
-  <div class="absolute top-0 right-0">
+  <div>
     <div class="flex justify-end px-5">
       <DefaultButton
           v-if="!walletStore.connected"
