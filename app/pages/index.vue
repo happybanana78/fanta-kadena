@@ -1,5 +1,5 @@
 <template>
-  <div v-if="walletStore.connected" class="flex flex-col justify-center items-center p-6 space-y-8">
+  <div v-if="walletStore.connected && !loading" class="flex flex-col justify-center items-center p-6 space-y-8">
     <!-- New Game Card -->
     <div class="w-full max-w-xl rounded-2xl shadow-2xl bg-slate-700/80 backdrop-blur-md border border-slate-600 p-8 animate-fadeIn">
       <h2 class="text-white text-2xl font-bold mb-4 text-center">Create a New Game</h2>
@@ -33,23 +33,25 @@
       <p v-else class="text-slate-400 text-sm">No active games found.</p>
     </div>
   </div>
+
+  <PageLoader v-else/>
 </template>
 
 <script setup>
 import GameCard from "~/components/cards/GameCard.vue";
 import {useWalletStore} from "~~/stores/wallet_store.js";
+import PageLoader from "~/components/loaders/PageLoader.vue";
 
 const walletStore = useWalletStore();
 
-const currentAccount = ref('');
-
 const games = ref([]);
+
+const loading = ref(true);
 
 const loadGames = async () => {
   try {
     const response = await $fetch('/api/game/load', {
       params: {
-        account: currentAccount.value,
         expired: true,
       }
     });
@@ -59,6 +61,8 @@ const loadGames = async () => {
     }
   } catch (error) {
     console.log(error);
+  } finally {
+    loading.value = false;
   }
 }
 

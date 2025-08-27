@@ -1,12 +1,12 @@
 <template>
   <div :class="{ 'flex items-center justify-center': center }">
     <button
-        class="flex items-center justify-center cursor-pointer space-x-3 bg-indigo-600 text-white px-5 py-3 rounded-xl shadow-md transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-indigo-400 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
-        :class="{
+        v-if="!link"
+        class="flex items-center justify-center cursor-pointer space-x-3 px-5 py-3 rounded-xl shadow-md transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-indigo-400 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+        :class="[backgroundColor, textColor, hoverColor ? hoverColor : (fade ? 'hover:bg-indigo-500' : ''), {
           'w-full': full,
           'hover:scale-105': scale,
-          'hover:bg-indigo-500': fade,
-        }"
+        }]"
         :type="type"
         :value="value"
         @click="handleClick"
@@ -18,6 +18,18 @@
         <slot/>
       </span>
     </button>
+
+    <nuxt-link
+        v-if="link"
+        class="flex items-center justify-center cursor-pointer space-x-3 px-5 py-3 rounded-xl shadow-md transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-indigo-400 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+        :class="[backgroundColor, textColor, hoverColor ? hoverColor : (fade ? 'hover:bg-indigo-500' : ''), {
+          'w-full': full,
+          'hover:scale-105': scale,
+        }]"
+        :to="link"
+    >
+      <span class="text-sm font-semibold">{{ text }}</span>
+    </nuxt-link>
   </div>
 </template>
 
@@ -37,6 +49,10 @@ const props = defineProps({
     type: Function,
     default: () => {},
   },
+  link: {
+    type: String,
+    default: '',
+  },
   center: {
     type: Boolean,
     default: false,
@@ -55,6 +71,18 @@ const props = defineProps({
   full: {
     type: Boolean,
     default: false,
+  },
+  textColor: {
+    type: String,
+    default: 'text-white',
+  },
+  backgroundColor: {
+    type: String,
+    default: 'bg-indigo-600',
+  },
+  hoverColor: {
+    type: String,
+    default: '',
   },
   scale: {
     type: Boolean,

@@ -16,4 +16,13 @@
 import ConnectWallet from "~/components/ConnectWallet.vue";
 </script>
 
-<style></style>
+<style>
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+</style>
