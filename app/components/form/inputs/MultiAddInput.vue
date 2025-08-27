@@ -16,11 +16,13 @@
           :id="id"
           class="flex-1 rounded-xl border border-slate-500 bg-slate-800/80 text-white text-base p-3 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 shadow-sm hover:shadow-md"
           :placeholder="placeholder"
+          :readonly="readOnly"
       >
 
       <DefaultButton
           :is-slot="true"
           :action="addOption"
+          :disabled="readOnly"
       >
         <div class="flex items-center space-x-2">
           <UIcon name="ic:baseline-plus" class="size-5" />
@@ -76,6 +78,10 @@ const props = defineProps({
   type: {
     type: String,
     default: 'text',
+  },
+  readOnly: {
+    type: Boolean,
+    default: false,
   },
   error: {
     type: String,

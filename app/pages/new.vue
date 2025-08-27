@@ -12,6 +12,7 @@
             v-model="name"
             placeholder="Type game name..."
             type="text"
+            :read-only="isSubmitting"
             :error="errors.name"
         />
 
@@ -23,6 +24,7 @@
             v-model="description"
             placeholder="Type game description..."
             type="text"
+            :read-only="isSubmitting"
             :error="errors.description"
         />
 
@@ -33,6 +35,7 @@
             name="expiration"
             v-model="expiration"
             type="date"
+            :read-only="isSubmitting"
             :error="errors.expiration"
         />
 
@@ -43,6 +46,7 @@
             name="participation_fee"
             v-model="participationFee"
             type="number"
+            :read-only="isSubmitting"
             :error="errors.participation_fee"
         />
 
@@ -54,6 +58,7 @@
             placeholder="Type game option..."
             type="text"
             v-model="options"
+            :read-only="isSubmitting"
             :error="errors.options"
         />
 
@@ -68,6 +73,7 @@
             :loading="isSubmitting"
             :scale="true"
             :fade="false"
+            :disabled="isSubmitting"
             class="mt-12"
         />
       </form>
@@ -80,11 +86,11 @@ import { useToast } from "~~/composables/useToast.js";
 import { useForm } from "vee-validate";
 import { toTypedSchema } from "@vee-validate/zod";
 import { createGameSchema } from "~~/shared/schemas/game/create.js";
+import {useWalletStore} from "~~/stores/wallet_store.js";
 
 import DefaultInput from "~/components/form/inputs/DefaultInput.vue";
 import MultiAddInput from "~/components/form/inputs/MultiAddInput.vue";
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
-import {useWalletStore} from "~~/stores/wallet_store.js";
 
 const walletStore = useWalletStore();
 
@@ -120,7 +126,7 @@ const createGameSession = handleSubmit(async (vals) => {
       resetForm();
       useToast('Game Session Created!', 'green');
     } else {
-      generalError.value = response?.error?.message ?? 'Error during game session creation';
+      generalError.value = response?.error?.message ?? 'Error during game session creation.';
       useToast('Error during game session creation', 'red');
     }
   } catch (err) {

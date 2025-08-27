@@ -1,5 +1,5 @@
 <template>
-  <div v-if="!loading" class="mt-[100px] flex justify-center items-center">
+  <div v-if="!loading && walletStore.connected" class="mt-[100px] flex justify-center items-center">
     <div v-if="game" class="w-full max-w-4xl rounded-2xl shadow-2xl bg-slate-700/80 backdrop-blur-md border border-slate-600 p-8 animate-fadeIn">
       <!-- Game Header -->
       <div class="flex justify-between items-center mb-6">
@@ -22,7 +22,7 @@
       </p>
 
       <!-- Game Info Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div v-if="!showOptions" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div class="bg-slate-800 rounded-xl p-4 shadow-md">
           <h3 class="text-white font-semibold mb-2">Expiration</h3>
           <p class="text-slate-300">{{ game.expiration }}</p>
@@ -46,11 +46,35 @@
         </div>
       </div>
 
+      <div
+          v-if="showOptions"
+          class="mb-8 space-y-4"
+      >
+        <div
+            v-for="option in game.options"
+            :key="option"
+            class="flex items-center justify-between cursor-pointer bg-slate-800 text-white px-3 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-102 transition duration-150"
+            @click="!voting ? selectedOption = option : null"
+        >
+          <span class="text-sm font-medium">{{ option }}</span>
+          <UIcon
+              v-if="selectedOption === option"
+              name="ic:baseline-check-circle"
+              class="size-5 text-green-600"
+          />
+        </div>
+
+        <div v-if="generalError" class="flex justify-center mt-2">
+          <p class="text-red-400 text-sm font-medium">{{ generalError }}</p>
+        </div>
+      </div>
+
       <!-- Action Buttons -->
-      <div class="flex justify-end space-x-4">
+      <div v-if="!showOptions" class="flex justify-end space-x-4">
         <DefaultButton
             text="Join Game"
             :scale="true"
+            :action="() => showOptions = true"
         />
         <DefaultButton
             text="Back to Games"
@@ -58,6 +82,24 @@
             background-color="bg-slate-500"
             hover-color="hover:bg-slate-400"
             link="/"
+        />
+      </div>
+
+      <div v-if="showOptions" class="flex justify-end space-x-4">
+        <DefaultButton
+            text="Vote"
+            :scale="true"
+            :disabled="!selectedOption || voting"
+            :action="vote"
+            :loading="voting"
+        />
+        <DefaultButton
+            text="Back"
+            :scale="true"
+            background-color="bg-slate-500"
+            hover-color="hover:bg-slate-400"
+            :action="goBack"
+            :disabled="voting"
         />
       </div>
     </div>
@@ -76,15 +118,65 @@
 </template>
 
 <script setup>
+import {useCopyToClipboard} from "~~/composables/useCopyToClipboard.js";
+import {useToast} from "~~/composables/useToast.js";
+import {useWalletStore} from "~~/stores/wallet_store.js";
+
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 import PageLoader from "~/components/loaders/PageLoader.vue";
-import {useCopyToClipboard} from "~~/composables/useCopyToClipboard.js";
 
 const route = useRoute();
+
+const walletStore = useWalletStore();
 
 const game = ref(null);
 
 const loading = ref(true);
+
+const voting = ref(false);
+
+const showOptions = ref(false);
+
+const selectedOption = ref(null);
+
+const currentAccount = ref(null);
+
+const generalError = ref('');
+
+const vote = async () => {
+  voting.value = true;
+
+  try {
+    const response = await $fetch('/api/game/vote', {
+      method: 'POST',
+      body: {
+        account: currentAccount.value,
+        option: selectedOption.value,
+      },
+    });
+
+    if (response.ok) {
+      useToast('Voted successfully!', 'green');
+    } else {
+      generalError.value = response?.error?.message ?? 'Error during vote.';
+      useToast('Error during vote', 'red');
+    }
+  } catch (err) {
+    useToast('Error during vote', 'red');
+  } finally {
+    voting.value = false;
+    resetOptionState();
+  }
+}
+
+const goBack = () => {
+  resetOptionState();
+}
+
+const resetOptionState = () => {
+  showOptions.value = false;
+  selectedOption.value = null;
+}
 
 const loadGame = async () => {
   try {
@@ -105,18 +197,9 @@ const loadGame = async () => {
 }
 
 onMounted(async () => {
+  currentAccount.value = walletStore.account;
   await loadGame();
 });
-
-// const game = {
-//   name: 'Space Explorer',
-//   description: 'Embark on an intergalactic adventure and compete for rewards.',
-//   expiration: '2025-12-31',
-//   participationFee: '10.00',
-//   status: 'Active',
-//   players: ['Alice', 'Bob', 'Charlie'],
-//   creator: 'GameMaster42'
-// }
 </script>
 
 <style scoped></style>

@@ -9,6 +9,7 @@
         }]"
         :type="type"
         :value="value"
+        :disabled="disabled"
         @click="handleClick"
     >
       <span v-if="!isSlot" class="text-sm font-semibold">{{ text }}</span>
@@ -54,6 +55,10 @@ const props = defineProps({
     default: '',
   },
   center: {
+    type: Boolean,
+    default: false,
+  },
+  disabled: {
     type: Boolean,
     default: false,
   },

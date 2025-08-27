@@ -14,6 +14,7 @@
         :id="id"
         class="w-full rounded-xl border border-slate-500 bg-slate-800/80 text-white text-base p-3 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 shadow-sm hover:shadow-md"
         :placeholder="placeholder"
+        :readonly="readOnly"
         @input="emit('update:modelValue', $event.target.value)"
     >
     <div v-if="error" class="flex justify-start mt-1">
@@ -46,6 +47,10 @@ defineProps({
   type: {
     type: String,
     default: 'text',
+  },
+  readOnly: {
+    type: Boolean,
+    default: false,
   },
   error: {
     type: String,
