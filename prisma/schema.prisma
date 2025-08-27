@@ -1,37 +1,39 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "mysql"
+  url      = env("MYSQL_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
 }
 
-model Wallet {
-  id         String    @id @default(cuid())
-  account    String    @unique
-  pubKey     String
-  secretKey  String
-  chainId    String
-  networkId  String
-  userId     String?
-  user       User?     @relation(fields: [userId], references: [id])
-  merchantId String?
-  merchant   Merchant? @relation(fields: [merchantId], references: [id])
-  createdAt  DateTime  @default(now())
+model OptionVote {
+  id             String   @id @default(cuid())
+  session_id     String
+  session        Session  @relation(fields: [session_id], references: [id])
+  voter_account  String   @unique
+  voter_guard    String
+  option         BigInt
+  refunded       Int
+  redeemed_prize Int
+  slashed        Int
+  voted_at       DateTime @default(now())
 }
 
-model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  Wallet    Wallet[]
-}
-
-model Merchant {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  Wallet    Wallet[]
+model Session {
+  id                 String       @unique
+  name               String       @unique
+  description        String
+  expiration         DateTime     @default(now())
+  options            Json
+  fee                Float
+  creator_account    String
+  correct            BigInt       @default(-1)
+  result_voted       Int          @default(0)
+  invalidated        Int          @default(0)
+  creator_slashed    Int          @default(0)
+  total_winners      BigInt       @default(0)
+  result_released_at DateTime     @default(now())
+  created_at         DateTime     @default(now())
+  votes              OptionVote[]
 }

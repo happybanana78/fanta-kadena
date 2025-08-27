@@ -56,7 +56,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 
-defineProps({
+const props = defineProps({
   label: {
     type: String,
     default: '',
@@ -81,37 +81,31 @@ defineProps({
     type: String,
     default: '',
   },
+  modelValue: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const currentOption = ref('');
 
-const options = ref([]);
+const options = computed({
+  get: () => props.modelValue,
+  set: (val) => emit('update:modelValue', val),
+});
 
 const addOption = () => {
-  if (!currentOption.value) {
-    return;
-  }
-
-  options.value.push({
-    id: uuidv4(),
-    name: currentOption.value,
-    isRight: false,
-  });
-
+  if (!currentOption.value) return;
+  options.value = [
+    ...options.value,
+    { id: uuidv4(), name: currentOption.value, isRight: false },
+  ];
   currentOption.value = '';
-
-  emit('update-options', options.value);
 }
 
 const removeOption = (id) => {
-  const index = options.value.findIndex(obj => obj.id === id);
-
-  if (index !== -1) {
-    options.value.splice(index, 1);
-  }
-
-  emit('update-options', options.value);
+  options.value = options.value.filter(opt => opt.id !== id);
 }
 
-const emit = defineEmits(['update-options']);
+const emit = defineEmits(['update:modelValue']);
 </script>

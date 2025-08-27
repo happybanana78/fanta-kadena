@@ -1,3 +1,0 @@
-(use "coin")
-(use coin)
-(list-modules)

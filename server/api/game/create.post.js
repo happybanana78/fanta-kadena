@@ -67,16 +67,17 @@ export default defineEventHandler(async (event) => {
         }
 
         // Save new wallet account to db
-        // await prisma.wallet.create({
-        //     data: {
-        //         account,
-        //         pubKey: pubHex,
-        //         secretKey: useEncryptKey(privHex),
-        //         chainId: String(config.KADENA_CHAIN_ID),
-        //         networkId: config.KADENA_NETWORK_ID,
-        //         userId: userId,
-        //     },
-        // });
+        await prisma.session.create({
+            data: {
+                id: `${parsed.name}-${uuidv4()}`,
+                name: parsed.name,
+                description: parsed.description,
+                expiration: parsedDate,
+                options: parsed.options.map(opt => opt.name),
+                fee: parsedFee,
+                creator_account: creatorAccount,
+            },
+        });
 
         return {
             ok: true,

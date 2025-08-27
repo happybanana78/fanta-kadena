@@ -44,6 +44,7 @@
         :full="true"
         value="chainweaver"
         :action="setWallet"
+        class="mt-6"
       />
 
       <DefaultInput

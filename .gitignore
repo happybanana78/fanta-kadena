@@ -26,5 +26,7 @@ logs
 /app/generated/prisma
 
 .pc-history
+pact/contracts/game/.pc-history
+pact/contracts/game/.vscode
 
 .kadena

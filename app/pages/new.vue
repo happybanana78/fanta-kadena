@@ -55,7 +55,6 @@
             type="text"
             v-model="options"
             :error="errors.options"
-            @update-options="addOptions"
         />
 
         <div v-if="generalError" class="flex justify-center mt-2">
@@ -91,11 +90,7 @@ const walletStore = useWalletStore();
 
 const generalError = ref('');
 
-const addOptions = (event) => {
-  options.value = event;
-}
-
-const { handleSubmit, errors, setErrors, isSubmitting, defineField } = useForm({
+const { handleSubmit, errors, setErrors, isSubmitting, defineField, resetForm } = useForm({
   validationSchema: toTypedSchema(createGameSchema),
   initialValues: {
     account: '',
@@ -122,6 +117,7 @@ const createGameSession = handleSubmit(async (vals) => {
     });
 
     if (response.ok) {
+      resetForm();
       useToast('Game Session Created!', 'green');
     } else {
       generalError.value = response?.error?.message ?? 'Error during game session creation';
