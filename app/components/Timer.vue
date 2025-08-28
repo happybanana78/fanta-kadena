@@ -1,6 +1,8 @@
 <template>
 <div>
-  <p>{{ text }} <span class="text-slate-300">{{ countdown }}</span></p>
+  <p :class="[textClass]">
+    {{ text }} <span :class="[countdownClass]">{{ countdown }}</span>
+  </p>
 </div>
 </template>
 
@@ -13,7 +15,15 @@ const props = defineProps({
   targetDate: {
     type: String,
     required: true,
-  }
+  },
+  textClass: {
+    type: String,
+    default: '',
+  },
+  countdownClass: {
+    type: String,
+    default: 'text-slate-300',
+  },
 });
 
 const countdown = ref('');

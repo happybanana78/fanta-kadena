@@ -38,7 +38,10 @@
               v-if="new Date() < new Date(game.expiration)"
               text="Time left:"
               :target-date="new Date(game.expiration).toString()"
+              text-class="text-white"
+              countdown-class="text-green-600"
           />
+          <p v-else>Time left: <span class="text-green-600">voting ended</span></p>
         </div>
         <div class="bg-slate-800 rounded-xl p-4 shadow-md">
           <h3 class="text-white font-semibold mb-2">Participation Fee</h3>
@@ -59,31 +62,22 @@
         </div>
       </div>
 
+      <CreatorGameOptions
+          v-if="showOptions && game.is_expired && game.creator_account === currentAccount"
+          :game="game"
+          :account="currentAccount"
+          @toggle-options="showOptions = false"
+      />
+
+      <PlayerGameOptions
+          v-if="showOptions && !game.is_expired && game.creator_account !== currentAccount"
+          :game="game"
+          :account="currentAccount"
+          @toggle-options="showOptions = false"
+      />
+
       <div v-if="alreadyVoted" class="flex flex-col items-center mt-2 mb-6">
         <p class="text-xl font-bold">You Already Voted For This Game</p>
-      </div>
-
-      <div
-          v-if="showOptions"
-          class="mb-8 space-y-4"
-      >
-        <div
-            v-for="option in game.options"
-            :key="option"
-            class="flex items-center justify-between cursor-pointer bg-slate-800 text-white px-3 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-102 transition duration-150"
-            @click="!voting ? selectedOption = option : null"
-        >
-          <span class="text-sm font-medium">{{ option }}</span>
-          <UIcon
-              v-if="selectedOption === option"
-              name="ic:baseline-check-circle"
-              class="size-5 text-green-600"
-          />
-        </div>
-
-        <div v-if="generalError" class="flex justify-center mt-2">
-          <p class="text-red-400 text-sm font-medium">{{ generalError }}</p>
-        </div>
       </div>
 
       <!-- Action Buttons -->
@@ -95,29 +89,19 @@
             :action="() => showOptions = true"
         />
         <DefaultButton
+            v-if="game.is_expired && game.creator_account === currentAccount"
+            text="Publish Result"
+            :scale="true"
+            background-color="bg-green-700"
+            hover-color="hover:bg-green-600"
+            :action="() => showOptions = true"
+        />
+        <DefaultButton
             text="Back to Games"
             :scale="true"
             background-color="bg-slate-500"
             hover-color="hover:bg-slate-400"
             link="/"
-        />
-      </div>
-
-      <div v-if="showOptions" class="flex justify-end space-x-4">
-        <DefaultButton
-            text="Vote"
-            :scale="true"
-            :disabled="!selectedOption || voting"
-            :action="vote"
-            :loading="voting"
-        />
-        <DefaultButton
-            text="Back"
-            :scale="true"
-            background-color="bg-slate-500"
-            hover-color="hover:bg-slate-400"
-            :action="goBack"
-            :disabled="voting"
         />
       </div>
     </div>
@@ -137,13 +121,14 @@
 
 <script setup>
 import {useCopyToClipboard} from "~~/composables/useCopyToClipboard.js";
-import {useToast} from "~~/composables/useToast.js";
 import {useWalletStore} from "~~/stores/wallet_store.js";
+import Timer from "~/components/Timer.vue";
+import {useParseDate} from "~~/composables/useParseDate.js";
 
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 import PageLoader from "~/components/loaders/PageLoader.vue";
-import Timer from "~/components/Timer.vue";
-import {useParseDate} from "~~/composables/useParseDate.js";
+import CreatorGameOptions from "~/partials/CreatorGameOptions.vue";
+import PlayerGameOptions from "~/partials/PlayerGameOptions.vue";
 
 const route = useRoute();
 
@@ -151,58 +136,15 @@ const walletStore = useWalletStore();
 
 const game = ref(null);
 
+const mounting = ref(true);
+
 const loading = ref(true);
 
-const voting = ref(false);
-
 const showOptions = ref(false);
-
-const selectedOption = ref(null);
 
 const currentAccount = ref(null);
 
 const alreadyVoted = ref(false);
-
-const generalError = ref('');
-
-const vote = async () => {
-  voting.value = true;
-
-  try {
-    const response = await $fetch('/api/games/votes/vote', {
-      method: 'POST',
-      body: {
-        id: game.value.id,
-        account: currentAccount.value,
-        option: game.value.options.indexOf(selectedOption.value),
-        fee: game.value.fee,
-      },
-    });
-
-    if (response.ok) {
-      resetOptionState();
-      useToast('Voted successfully!', 'green');
-    } else {
-      generalError.value = response?.error?.message ?? 'Error during vote.';
-      useToast('Error during vote', 'red');
-    }
-  } catch (error) {
-    console.log(error);
-    useToast('Error during vote', 'red');
-  } finally {
-    voting.value = false;
-  }
-}
-
-const goBack = () => {
-  resetOptionState();
-}
-
-const resetOptionState = () => {
-  showOptions.value = false;
-  selectedOption.value = null;
-  generalError.value = '';
-}
 
 const loadGame = async () => {
   try {
@@ -236,21 +178,28 @@ const loadVote = async () => {
   }
 }
 
-watch(() => walletStore.account, (newValue) => {
-  if (newValue) {
-    currentAccount.value = newValue;
+const init = async () => {
+  loading.value = true;
+
+  await loadGame();
+
+  currentAccount.value = walletStore.account;
+  alreadyVoted.value = false;
+
+  await loadVote();
+
+  loading.value = false;
+}
+
+watch(() => walletStore.connected, async (newValue) => {
+  if (!mounting.value && newValue) {
+    await init();
   }
 });
 
 onMounted(async () => {
-  loading.value = true;
-
-  await loadGame();
-  await loadVote();
-
-  currentAccount.value = walletStore.account
-
-  loading.value = false;
+  await init();
+  mounting.value = false;
 });
 </script>
 
