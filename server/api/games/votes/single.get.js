@@ -7,8 +7,6 @@ const prisma = new PrismaClient();
 export default defineEventHandler(async (event) => {
     const query = getQuery(event);
 
-    console.log('gigi', query);
-
     const vote = await prisma.optionVote.findFirst({
         where: {
             voter_account: query.account,

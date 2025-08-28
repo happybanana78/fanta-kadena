@@ -5,7 +5,12 @@
       <div class="flex justify-between items-center mb-6">
         <h1 class="text-white text-3xl font-bold">{{ game.name }}</h1>
         <div class="flex items-center space-x-4">
-          <span class="text-lg font-semibold">Publish result date: 20/08/2025</span>
+          <Timer
+              v-if="game.is_expired"
+              text="Result publish:"
+              :target-date="game.publish_expiration"
+              class="text-lg font-semibold"
+          />
           <span
               class="px-3 py-1 rounded-lg text-sm font-semibold"
               :class="{
@@ -27,8 +32,13 @@
       <!-- Game Info Grid -->
       <div v-if="!showOptions" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div class="bg-slate-800 rounded-xl p-4 shadow-md">
-          <h3 class="text-white font-semibold mb-2">Expiration</h3>
-          <p class="text-slate-300">{{ game.expiration }}</p>
+          <h3 class="text-white font-semibold mb-2">Voting Expiration</h3>
+          <p class="text-slate-300">{{ useParseDate(game.expiration, false) }}</p>
+          <Timer
+              v-if="new Date() < new Date(game.expiration)"
+              text="Time left:"
+              :target-date="new Date(game.expiration).toString()"
+          />
         </div>
         <div class="bg-slate-800 rounded-xl p-4 shadow-md">
           <h3 class="text-white font-semibold mb-2">Participation Fee</h3>
@@ -79,7 +89,7 @@
       <!-- Action Buttons -->
       <div v-if="!showOptions" class="flex justify-end space-x-4">
         <DefaultButton
-            v-if="!alreadyVoted"
+            v-if="!alreadyVoted && !game.is_expired"
             text="Join Game"
             :scale="true"
             :action="() => showOptions = true"
@@ -132,6 +142,8 @@ import {useWalletStore} from "~~/stores/wallet_store.js";
 
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 import PageLoader from "~/components/loaders/PageLoader.vue";
+import Timer from "~/components/Timer.vue";
+import {useParseDate} from "~~/composables/useParseDate.js";
 
 const route = useRoute();
 
@@ -225,7 +237,9 @@ const loadVote = async () => {
 }
 
 watch(() => walletStore.account, (newValue) => {
-  currentAccount.value = newValue;
+  if (newValue) {
+    currentAccount.value = newValue;
+  }
 });
 
 onMounted(async () => {

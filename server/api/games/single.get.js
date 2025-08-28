@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import {useParseDate} from "~~/composables/useParseDate.js";
 import {useParseStatus} from "~~/server/utils/useParseStatus.js";
 import {useSerialize} from "~~/server/utils/useSerialize.js";
 
@@ -23,9 +22,11 @@ export default defineEventHandler(async (event) => {
 
     const serialized = useSerialize({
         ...session,
-        expiration: useParseDate(session.expiration, false),
+        expiration: new Date(session.expiration).toString(),
+        publish_expiration: new Date(session.expiration) + 1,
         status: useParseStatus(session),
         total_voters: session.votes.length,
+        is_expired: new Date() > new Date(session.expiration),
     });
 
     return {
