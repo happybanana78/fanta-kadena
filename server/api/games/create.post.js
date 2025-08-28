@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
 
     const parsed = useValidate(createGameSchema, body);
 
+    const parsedId = `${parsed.name.replace(' ', '-')}-${uuidv4()}`;
     const creatorAccount = parsed.account;
     const creatorPubKey = parsed.account.slice(2);
     const parsedDate = useParseDate(parsed.expiration, true);
@@ -25,7 +26,7 @@ export default defineEventHandler(async (event) => {
     const client = createClient(host);
 
     const args = [
-        `${parsed.name}-${uuidv4()}`,
+        parsedId,
         parsed.name,
         parsed.description,
         parsedDate,
@@ -69,13 +70,14 @@ export default defineEventHandler(async (event) => {
         // Save new wallet account to db
         await prisma.session.create({
             data: {
-                id: `${parsed.name}-${uuidv4()}`,
+                id: parsedId,
                 name: parsed.name,
                 description: parsed.description,
                 expiration: parsedDate,
                 options: parsed.options.map(opt => opt.name),
                 fee: parsedFee,
                 creator_account: creatorAccount,
+                result_released_at: useParseDate("1990-09-01", false),
             },
         });
 

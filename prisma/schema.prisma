@@ -14,9 +14,9 @@ model OptionVote {
   voter_account  String   @unique
   voter_guard    String
   option         BigInt
-  refunded       Int
-  redeemed_prize Int
-  slashed        Int
+  refunded       Int      @default(0)
+  redeemed_prize Int      @default(0)
+  slashed        Int      @default(0)
   voted_at       DateTime @default(now())
 }
 

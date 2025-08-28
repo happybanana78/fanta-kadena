@@ -260,7 +260,7 @@
 ] } ])
 
 (expect "Voting success" true
-    (free.game-session.vote_option "sess-1" "alice" (read-keyset "alice-ks") 2))
+    (free.game-session.vote-option "sess-1" "alice" (read-keyset "alice-ks") 2))
 
 (commit-tx)
 
@@ -272,7 +272,7 @@
 ] } ])
 
 (expect "Voting success" true
-    (free.game-session.vote_option "sess-2" "alice" (read-keyset "alice-ks") 2))
+    (free.game-session.vote-option "sess-2" "alice" (read-keyset "alice-ks") 2))
 
 (commit-tx)
 
@@ -284,7 +284,7 @@
 ] } ])
 
 (expect-failure "Voting fail" "Correct index out of range."
-    (free.game-session.vote_option "sess-1" "alice" (read-keyset "alice-ks") 12))
+    (free.game-session.vote-option "sess-1" "alice" (read-keyset "alice-ks") 12))
 
 (commit-tx)
 
@@ -296,7 +296,7 @@
 ] } ])
 
 (expect "Voting success" true
-    (free.game-session.vote_option "sess-1" "bob" (read-keyset "bob-ks") 3))
+    (free.game-session.vote-option "sess-1" "bob" (read-keyset "bob-ks") 3))
 
 (commit-tx)
 
@@ -309,7 +309,7 @@
 
 (expect-failure "Already voted"
     "Already voted on this session."
-    (free.game-session.vote_option "sess-1" "bob" (read-keyset "bob-ks") 3))
+    (free.game-session.vote-option "sess-1" "bob" (read-keyset "bob-ks") 3))
 
 (commit-tx)
 
@@ -321,7 +321,7 @@
 ] } ])
 
 (expect "Voting success" true
-    (free.game-session.vote_option "sess-4" "alice" (read-keyset "alice-ks") 2))
+    (free.game-session.vote-option "sess-4" "alice" (read-keyset "alice-ks") 2))
 
 (commit-tx)
 
@@ -333,7 +333,7 @@
 ] } ])
 
 (expect "Voting success" true
-    (free.game-session.vote_option "sess-5" "alice" (read-keyset "alice-ks") 2))
+    (free.game-session.vote-option "sess-5" "alice" (read-keyset "alice-ks") 2))
 
 (commit-tx)
 
@@ -345,7 +345,7 @@
 ] } ])
 
 (expect "Voting success" true
-    (free.game-session.vote_option "sess-6" "alice" (read-keyset "alice-ks") 2))
+    (free.game-session.vote-option "sess-6" "alice" (read-keyset "alice-ks") 2))
 
 (commit-tx)
 
@@ -357,7 +357,7 @@
 ] } ])
 
 (expect "Voting success" true
-    (free.game-session.vote_option "sess-6" "bob" (read-keyset "bob-ks") 2))
+    (free.game-session.vote-option "sess-6" "bob" (read-keyset "bob-ks") 2))
 
 (commit-tx)
 
@@ -399,7 +399,7 @@
 
 (expect-failure "Voting closed"
     "Correct option already revealed."
-    (free.game-session.vote_option "sess-1" "alice" (read-keyset "alice-ks") 2))
+    (free.game-session.vote-option "sess-1" "alice" (read-keyset "alice-ks") 2))
 
 (commit-tx)
 
@@ -516,9 +516,15 @@
 (expect-failure "Wrong option index" "Correct index out of range." (free.game-session.reveal-correct "sess-2" 10))
 
 ;; Try success
-(expect "Success reveal sess-2:" true (free.game-session.reveal-correct "sess-2" 2))
+(let ((reveal-correct (free.game-session.reveal-correct "sess-2" 2)))
+  (expect "Return the session object"
+    "object"
+    (typeof reveal-correct)))
 
-(expect "Success reveal sess-5:" true (free.game-session.reveal-correct "sess-5" 0))
+(let ((reveal-correct (free.game-session.reveal-correct "sess-5" 0)))
+  (expect "Return the session object"
+    "object"
+    (typeof reveal-correct)))
 
 (commit-tx)
 
@@ -539,74 +545,7 @@
 (commit-tx) 
 
 ;; -----------------------------------------------------------------
-;; Step 12: Check for session invalidation
-;; -----------------------------------------------------------------
-(begin-tx)
-
-;; Expiration date not reached scenario
-(expect-failure "Expiration not reached" "Games session expiration date not reached." 
-  (free.game-session.handle-session-invalidation "sess-1"))
-
-(commit-tx)
-
-(begin-tx)
-
-;; Creator didn't publish a result in time and gets slashed scenario
-(env-sigs [
-  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [] }
-])
-
-(env-chain-data {
-  "block-time": (time "2025-09-02T12:00:00Z")
-})
-
-(expect "Game invalidate and creator funds slashed" "Game invalidated." 
-  (free.game-session.handle-session-invalidation "sess-4"))
-
-(commit-tx)
-
-(begin-tx)
-
-;; Creator has still grace period time to publish result scenario
-(env-chain-data {
-  "block-time": (time "2024-09-01T12:00:00Z")
-})
-
-(expect-failure "Expiration not reached" "Creator has still time to publish." 
-  (free.game-session.handle-session-invalidation "sess-2"))
-
-(commit-tx)
-
-(begin-tx)
-
-;; Creator managed to publish result in time scenario
-(env-chain-data {
-  "block-time": (time "2024-09-02T12:00:00Z")
-})
-
-(expect-failure "Expiration not reached" "Creator has published a result in time." 
-  (free.game-session.handle-session-invalidation "sess-2"))
-
-(commit-tx)
-
-(begin-tx)
-
-;; Less than 1 player vote scenario (refund)
-(env-sigs [
-  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [] }
-])
-
-(env-chain-data {
-  "block-time": (time "2024-09-02T12:00:00Z")
-})
-
-(expect "No votes" "No votes, game refunded." 
-  (free.game-session.handle-session-invalidation "sess-3"))
-
-(commit-tx)
-
-;; -----------------------------------------------------------------
-;; Step 13: Check if result was voted
+;; Step 12: Check if result was voted
 ;; -----------------------------------------------------------------
 (begin-tx)
 
@@ -669,7 +608,7 @@
 (commit-tx)
 
 ;; -----------------------------------------------------------------
-;; Step 14: Pay player reward
+;; Step 13: Pay player reward
 ;; -----------------------------------------------------------------
 (begin-tx)
 
@@ -739,7 +678,7 @@
 (commit-tx)
 
 ;; -----------------------------------------------------------------
-;; Step 15: Claim creator funds
+;; Step 14: Claim creator funds
 ;; -----------------------------------------------------------------
 (begin-tx)
 
@@ -793,7 +732,7 @@
 (commit-tx)
 
 ;; -----------------------------------------------------------------
-;; Step 16: Claim player refund
+;; Step 15: Claim player refund
 ;; -----------------------------------------------------------------
 (begin-tx)
 

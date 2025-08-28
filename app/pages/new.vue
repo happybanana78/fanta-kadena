@@ -117,7 +117,7 @@ const [options] = defineField('options');
 
 const createGameSession = handleSubmit(async (vals) => {
   try {
-    const response = await $fetch('/api/game/create', {
+    const response = await $fetch('/api/games/create', {
       method: 'POST',
       body: vals,
     });

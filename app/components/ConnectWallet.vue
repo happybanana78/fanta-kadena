@@ -96,8 +96,8 @@ const disconnect = () => {
   useRemoveData('wallet');
 }
 
-onMounted(() => {
-  const data = useGetData('wallet');
+onMounted(async () => {
+  const data = await useGetData('wallet');
 
   if (data) {
     walletStore.wallet = data.name;

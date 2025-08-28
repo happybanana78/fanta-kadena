@@ -1,5 +1,5 @@
 import nuxtStorage from 'nuxt-storage';
 
-export const useGetData = (key) => {
-    return nuxtStorage.localStorage.getData(key);
+export const useGetData = async (key) => {
+    return await nuxtStorage.localStorage.getData(key);
 }

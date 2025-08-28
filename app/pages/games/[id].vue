@@ -4,16 +4,19 @@
       <!-- Game Header -->
       <div class="flex justify-between items-center mb-6">
         <h1 class="text-white text-3xl font-bold">{{ game.name }}</h1>
-        <span
-            class="px-3 py-1 rounded-lg text-sm font-semibold"
-            :class="{
+        <div class="flex items-center space-x-4">
+          <span class="text-lg font-semibold">Publish result date: 20/08/2025</span>
+          <span
+              class="px-3 py-1 rounded-lg text-sm font-semibold"
+              :class="{
             'bg-green-600 text-white': game.status === 'Active',
             'bg-red-600 text-white': game.status === 'Ended',
             'bg-yellow-500 text-black': game.status === 'Pending'
           }"
-        >
+          >
           {{ game.status }}
         </span>
+        </div>
       </div>
 
       <!-- Game Description -->
@@ -46,6 +49,10 @@
         </div>
       </div>
 
+      <div v-if="alreadyVoted" class="flex flex-col items-center mt-2 mb-6">
+        <p class="text-xl font-bold">You Already Voted For This Game</p>
+      </div>
+
       <div
           v-if="showOptions"
           class="mb-8 space-y-4"
@@ -72,6 +79,7 @@
       <!-- Action Buttons -->
       <div v-if="!showOptions" class="flex justify-end space-x-4">
         <DefaultButton
+            v-if="!alreadyVoted"
             text="Join Game"
             :scale="true"
             :action="() => showOptions = true"
@@ -141,31 +149,36 @@ const selectedOption = ref(null);
 
 const currentAccount = ref(null);
 
+const alreadyVoted = ref(false);
+
 const generalError = ref('');
 
 const vote = async () => {
   voting.value = true;
 
   try {
-    const response = await $fetch('/api/game/vote', {
+    const response = await $fetch('/api/games/votes/vote', {
       method: 'POST',
       body: {
+        id: game.value.id,
         account: currentAccount.value,
-        option: selectedOption.value,
+        option: game.value.options.indexOf(selectedOption.value),
+        fee: game.value.fee,
       },
     });
 
     if (response.ok) {
+      resetOptionState();
       useToast('Voted successfully!', 'green');
     } else {
       generalError.value = response?.error?.message ?? 'Error during vote.';
       useToast('Error during vote', 'red');
     }
-  } catch (err) {
+  } catch (error) {
+    console.log(error);
     useToast('Error during vote', 'red');
   } finally {
     voting.value = false;
-    resetOptionState();
   }
 }
 
@@ -176,11 +189,12 @@ const goBack = () => {
 const resetOptionState = () => {
   showOptions.value = false;
   selectedOption.value = null;
+  generalError.value = '';
 }
 
 const loadGame = async () => {
   try {
-    const response = await $fetch('/api/game/single', {
+    const response = await $fetch('/api/games/single', {
       params: {
         id: route.params.id,
       }
@@ -191,14 +205,38 @@ const loadGame = async () => {
     }
   } catch (error) {
     console.log(error);
-  } finally {
-    loading.value = false;
   }
 }
 
+const loadVote = async () => {
+  try {
+    const response = await $fetch('/api/games/votes/single', {
+      params: {
+        account: currentAccount.value,
+      }
+    });
+
+    if (response.ok) {
+      alreadyVoted.value = true;
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+watch(() => walletStore.account, (newValue) => {
+  currentAccount.value = newValue;
+});
+
 onMounted(async () => {
-  currentAccount.value = walletStore.account;
+  loading.value = true;
+
   await loadGame();
+  await loadVote();
+
+  currentAccount.value = walletStore.account
+
+  loading.value = false;
 });
 </script>
 

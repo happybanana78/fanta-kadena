@@ -113,31 +113,19 @@
      @doc "Check if account already voted for an option"
 
      (let ((vote-data (try {} (read option_votes vote-key))))
-               (enforce
-                 (= {} vote-data)
-                 "Already voted on this session."
-               )
-             ))
+      (enforce
+        (= {} vote-data)
+        "Already voted on this session."
+      )))
 
   (defun check-multiple-result-votes (vote-key:string)
      @doc "Check if account already voted for a result"
 
      (let ((vote-data (try {} (read result_votes vote-key))))
-               (enforce
-                 (= {} vote-data)
-                 "Already voted on this session's result."
-               )
-             ))
-
-  (defun ensure-session-exists (session-id:string)
-      @doc "Check if the provided session id exists."
-
-      (let ((session-data (try {} (read sessions session-id))))
-                (enforce
-                  (!= {} session-data)
-                  "Session does not exist."
-                )
-              ))
+      (enforce
+        (= {} vote-data)
+        "Already voted on this session's result."
+      )))
 
   (defun ensure-creator (s:object{session})
     (enforce-guard (at 'creator-guard s)))
@@ -146,12 +134,11 @@
       @doc "Check if the voter participated in the game session."
 
       (let ((voter-key (make-vote-key session-id voter))
-          (voter-data (try {} (read option_votes voter-key))))
-                (enforce
-                  (!= {} voter-data)
-                  "You didn't partecipate in this game session."
-                )
-              ))
+        (voter-data (try {} (read option_votes voter-key))))
+          (enforce
+            (!= {} voter-data)
+            "You didn't partecipate in this game session."
+          )))
 
   (defun ensure-expired (s:object{session})
     (enforce (>= (now) (at 'expiration s))
@@ -288,10 +275,10 @@
       , 'created-at:         (now)
       })
 
-    session-id
+    (get-session session-id)
   )
 
-  (defun vote_option (session-id:string voter-account:string voter-ks:keyset option-index:integer)
+  (defun vote-option (session-id:string voter-account:string voter-ks:keyset option-index:integer)
     @doc "Cast a vote with the option you think is gonna be correct."
 
     ;; Validate option
@@ -348,7 +335,8 @@
             'total-winners: (length winners), 
             'result-released-at: (now) 
           }))
-        true))
+        
+        (get-session session-id)))
 
   (defun vote-result (session-id:string voter-account:string is-right:bool)
       @doc "Allows users who pareticpated to vote if the session creator chosen result is correct or not."
@@ -364,6 +352,10 @@
         (ensure-voter-participated session-id voter-account)
         (check-multiple-result-votes vote-key)
 
+        ;; Check if result voting period is over
+        (enforce (>= (add-time (at 'result-released-at current-session) (days GRACE_DAYS)) (now))
+          "Result voting period is over.")
+
         (write result_votes vote-key
                 { 'session-id:  session-id
                 , 'voter:       voter-account
@@ -373,38 +365,42 @@
         true))
 
   (defun handle-session-invalidation (session-id:string)
-    @doc "Function that gets called off-chain regularly to check if the game creator did or didn't publish a correct answer to the game session and to check if at least 1 user participated in the voting."
+    @doc "Check if the game creator did or didn't publish a correct answer to the game session and to check if at least 1 player participated in the voting."
+    
+    (require-capability (INTERNAL))
     
     (let* ((current-session (get-session session-id)))      
       ;; Check if the game is already over
-      (enforce (and (not (at 'invalidated current-session)) (not (at 'result-voted current-session)))
-        "The game was already settled.")
+      (if (and (not (at 'invalidated current-session)) (not (at 'result-voted current-session)))
+        "The game was already settled."
 
-      ;; Check if expiration date was reached
-      (if (<= (at 'expiration current-session) (now))
-        true
-        (enforce false "Games session expiration date not reached."))
+        (do 
+          ;; Check if expiration date was reached
+          (if (<= (at 'expiration current-session) (now))
+            true
+            (enforce false "Games session expiration date not reached."))
 
-      ;; Check if at least 1 player voted
-      (if (<= (count-option-votes session-id) 0)
-        (do
-          (update sessions session-id { 'invalidated: true })
-          "No votes, game refunded.")
+          ;; Check result publishing grace time
+          (enforce (<= (add-time (at 'expiration current-session) (days GRACE_DAYS)) (now))
+            "Creator has still time to publish.")
 
-        ;; Check result publishing grace time
-        (do (enforce (<= (add-time (at 'expiration current-session) (days GRACE_DAYS)) (now))
-          "Creator has still time to publish.")
+          ;; Check if at least 1 player voted
+          (if (<= (count-option-votes session-id) 0)
+            (do
+              (update sessions session-id { 'invalidated: true })
+              "No votes, game refunded.")
 
-          ;; Check if game session creator submitted an answer
-          (enforce (= (at 'correct current-session) -1)
-            "Creator has published a result in time.")
+            (do
+              ;; Check if game session creator submitted an answer
+              (enforce (= (at 'correct current-session) -1)
+                "Creator has published a result in time.")
 
-          (with-capability (INTERNAL)
-            (slash-creator-funds session-id))
+              (with-capability (INTERNAL)
+                (slash-creator-funds session-id))
 
-          (update sessions session-id { 'invalidated: true, 'creator-slashed: true })
+              (update sessions session-id { 'invalidated: true, 'creator-slashed: true })
 
-          "Game invalidated."))))
+              "Game invalidated."))))))
 
   (defun check-result-voting-ended (session-id:string)
     @doc "Function that gets called off-chain regularly to handle game session closure."
@@ -416,7 +412,7 @@
 
       ;; Check if result voting period is over
       (enforce (<= (add-time (at 'result-released-at current-session) (days GRACE_DAYS)) (now))
-        "There is still time to vote."))
+         "There is still time to vote."))
 
     ;; Check if quorum is reached to proceed with the game reward distribution else refund
     (let ((total-option-votes (count-option-votes session-id))
@@ -445,6 +441,9 @@
   (defun claim-creator-funds (session-id:string)
     @doc "Called off-chain by the game session creator to unlock his funds and get them back if game invalidation wasn't his fault or if the game ended successfully."
 
+    (with-capability (INTERNAL)
+      (handle-session-invalidation session-id))
+    
     (with-read creator-locked-balances session-id { 
       'amount := amount, 
       'owner-account := account, 
@@ -469,6 +468,9 @@
 
   (defun claim-refund (session-id:string voter-account:string)
     @doc "Called off-chain by the player to get a refund on an invalidated game session."
+
+    (with-capability (INTERNAL)
+      (handle-session-invalidation session-id))
       
     (let ((key (make-vote-key session-id voter-account)) 
       (vote (try {} (read option_votes key))) 
@@ -534,13 +536,17 @@
   (defun get-session:object{session} (session-id:string)
     @doc "Get the request session object by session id."
 
-    (ensure-session-exists session-id)
-    (read sessions session-id))
+    (let ((current-session (try {} (read sessions session-id))))
+      (enforce
+        (!= {} current-session)
+        "Session does not exist."
+      )
+    current-session))
 
   (defun get-vote:object{option_vote} (session-id:string voter:string)
     @doc "Get the vote object for a specific voter on a specific session."
 
-    (ensure-session-exists session-id)
+    (get-session session-id)
     (let ((key (make-vote-key session-id voter)))
         (let ((vote-data (try {} (read option_votes key))))
             (enforce
@@ -553,7 +559,7 @@
   (defun get-session-votes:[object{option_vote}] (session-id:string)
     @doc "Get all the option votes for a specific session."
 
-    (ensure-session-exists session-id)
+    (get-session session-id)
     (select option_votes (where 'session-id (= session-id))))
 
   (defun get-all-sessions:[object{session}] (expired:bool)

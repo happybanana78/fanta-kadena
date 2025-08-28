@@ -50,7 +50,7 @@ const loading = ref(true);
 
 const loadGames = async () => {
   try {
-    const response = await $fetch('/api/game/load', {
+    const response = await $fetch('/api/games/load', {
       params: {
         expired: true,
       }
