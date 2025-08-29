@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
     const vote = await prisma.optionVote.findFirst({
         where: {
             voter_account: query.account,
+            session_id: query.session_id,
         },
     });
 

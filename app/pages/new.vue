@@ -92,6 +92,8 @@ import DefaultInput from "~/components/form/inputs/DefaultInput.vue";
 import MultiAddInput from "~/components/form/inputs/MultiAddInput.vue";
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 
+const router = useRouter();
+
 const walletStore = useWalletStore();
 
 const generalError = ref('');
@@ -125,6 +127,7 @@ const createGameSession = handleSubmit(async (vals) => {
     if (response.ok) {
       resetForm();
       useToast('Game Session Created!', 'green');
+      await router.push(`/games/${response.data.session_id}`);
     } else {
       generalError.value = response?.error?.message ?? 'Error during game session creation.';
       useToast('Error during game session creation', 'red');
@@ -142,8 +145,16 @@ watchEffect(() => {
   }
 });
 
+watch(() => walletStore.account, async (newValue) => {
+  if (newValue) {
+    account.value = walletStore.account;
+  }
+});
+
 onMounted(() => {
-  account.value = walletStore.account;
+  if (walletStore.account) {
+    account.value = walletStore.account;
+  }
 });
 </script>
 

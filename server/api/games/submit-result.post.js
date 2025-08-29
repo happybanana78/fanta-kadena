@@ -1,8 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import { Pact, createClient, createSignWithChainweaver, isSignedTransaction } from '@kadena/client';
-import { createGameSchema } from "~~/shared/schemas/game/create.js";
-import {useValidate} from "~~/server/utils/useValidate.js";
-import { v4 as uuidv4 } from 'uuid';
 import {useParseDate} from "~~/composables/useParseDate.js";
 
 const prisma = new PrismaClient();
@@ -13,37 +10,27 @@ export default defineEventHandler(async (event) => {
 
     const body = await readBody(event);
 
-    const parsed = useValidate(createGameSchema, body);
-
-    const parsedId = `${parsed.name.replace(/ /g, '-')}-${uuidv4()}`;
-    const creatorAccount = parsed.account;
-    const creatorPubKey = parsed.account.slice(2);
-    const parsedDate = useParseDate(parsed.expiration, true);
-    const parsedFee = parseFloat(parsed.participation_fee.toFixed(1));
+    const account = body.account;
+    const accountPubKey = body.account.slice(2);
 
     const client = createClient(host);
 
     const args = [
-        parsedId,
-        parsed.name,
-        parsed.description,
-        parsedDate,
-        parsed.options.map(opt => opt.name),
-        { decimal: parsedFee },
-        creatorAccount
+        body.id,
+        { int: body.option },
     ];
 
-    const code = Pact.modules[config.MODULE_NAME]['create-session'](...args);
+    const code = Pact.modules[config.MODULE_NAME]['reveal-correct'](...args);
 
     const pactTx = Pact.builder
         .execution(code)
-        .addSigner(creatorPubKey, (withCap) => [
+        .addSigner(accountPubKey, (withCap) => [
             withCap('coin.GAS'),
-            withCap('coin.TRANSFER', creatorAccount, config.TREASURY_ACCOUNT, 10.0),
+            withCap(`${config.MODULE_NAME}.ACCOUNT_GUARD`, account),
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
-            senderAccount: creatorAccount
+            senderAccount: account
         })
         .setNetworkId(config.KADENA_NETWORK_ID)
         .createTransaction();
@@ -62,10 +49,12 @@ export default defineEventHandler(async (event) => {
 
         const data = listenRes.result.data;
 
-        // Save new wallet account to db
-        await prisma.session.create({
+        // Update session
+        await prisma.session.update({
+            where: {
+                id: body.id,
+            },
             data: {
-                id: parsedId,
                 name: data.name,
                 description: data.description,
                 expiration: data.expiration.time,
@@ -83,9 +72,7 @@ export default defineEventHandler(async (event) => {
 
         return {
             ok: true,
-            data: {
-                session_id: parsedId,
-            },
+            data: null,
         };
     }
 

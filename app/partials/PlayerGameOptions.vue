@@ -89,20 +89,20 @@ const vote = async () => {
 
     if (response.ok) {
       resetOptionState();
+      emit('vote-success');
       useToast('Voted successfully!', 'green');
     } else {
       generalError.value = response?.error?.message ?? 'Error during vote.';
       useToast('Error during vote', 'red');
     }
   } catch (error) {
-    console.log(error);
     useToast('Error during vote', 'red');
   } finally {
     voting.value = false;
   }
 }
 
-const emit = defineEmits(['toggle-options']);
+const emit = defineEmits(['toggle-options', 'vote-success']);
 </script>
 
 <style scoped></style>

@@ -30,3 +30,5 @@ pact/contracts/game/.pc-history
 pact/contracts/game/.vscode
 
 .kadena
+
+server/api/games/test.get.js

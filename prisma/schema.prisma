@@ -14,9 +14,9 @@ model OptionVote {
   voter_account  String   @unique
   voter_guard    String
   option         BigInt
-  refunded       Int      @default(0)
-  redeemed_prize Int      @default(0)
-  slashed        Int      @default(0)
+  refunded       Boolean  @default(false)
+  redeemed_prize Boolean  @default(false)
+  slashed        Boolean  @default(false)
   voted_at       DateTime @default(now())
 }
 
@@ -29,9 +29,9 @@ model Session {
   fee                Float
   creator_account    String
   correct            BigInt       @default(-1)
-  result_voted       Int          @default(0)
-  invalidated        Int          @default(0)
-  creator_slashed    Int          @default(0)
+  result_voted       Boolean      @default(false)
+  invalidated        Boolean      @default(false)
+  creator_slashed    Boolean      @default(false)
   total_winners      BigInt       @default(0)
   result_released_at DateTime     @default(now())
   created_at         DateTime     @default(now())

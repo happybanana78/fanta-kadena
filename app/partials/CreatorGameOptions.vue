@@ -96,7 +96,6 @@ const submitResult = async () => {
       useToast('Error during result submission', 'red');
     }
   } catch (error) {
-    console.log(error);
     useToast('Error during result submission', 'red');
   } finally {
     submittingResult.value = false;

@@ -74,6 +74,7 @@
           :game="game"
           :account="currentAccount"
           @toggle-options="showOptions = false"
+          @vote-success="alreadyVoted = true"
       />
 
       <div v-if="alreadyVoted" class="flex flex-col items-center mt-2 mb-6">
@@ -83,17 +84,18 @@
       <!-- Action Buttons -->
       <div v-if="!showOptions" class="flex justify-end space-x-4">
         <DefaultButton
-            v-if="!alreadyVoted && !game.is_expired"
+            v-if="!alreadyVoted && !game.is_expired && game.creator_account !== currentAccount"
             text="Join Game"
             :scale="true"
             :action="() => showOptions = true"
         />
         <DefaultButton
-            v-if="game.is_expired && game.creator_account === currentAccount"
+            v-if="game.creator_account === currentAccount"
             text="Publish Result"
             :scale="true"
             background-color="bg-green-700"
             hover-color="hover:bg-green-600"
+            :disabled="!game.is_expired"
             :action="() => showOptions = true"
         />
         <DefaultButton
@@ -167,6 +169,7 @@ const loadVote = async () => {
     const response = await $fetch('/api/games/votes/single', {
       params: {
         account: currentAccount.value,
+        session_id: route.params.id,
       }
     });
 

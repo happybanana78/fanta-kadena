@@ -13,8 +13,6 @@ export default defineEventHandler(async (event) => {
     const accountPubKey = body.account.slice(2);
     const parsedFee = parseFloat(body.fee.toFixed(1));
 
-    console.log('gigi', body);
-
     const client = createClient(host);
 
     const args = [
@@ -24,7 +22,7 @@ export default defineEventHandler(async (event) => {
         { int: body.option },
     ];
 
-    const code = Pact.modules[config.MODULE_NAME]['vote_option'](...args);
+    const code = Pact.modules[config.MODULE_NAME]['vote-option'](...args);
 
     const pactTx = Pact.builder
         .execution(code)
@@ -51,8 +49,6 @@ export default defineEventHandler(async (event) => {
         const submitRes = await client.submit(signedTx);
         const listenRes = await client.listen({ requestKey: submitRes.requestKey });
 
-        console.log('baby', listenRes);
-
         if (listenRes.result.status !== 'success') {
             return { ok: false, error: listenRes.result.error };
         }
@@ -64,9 +60,6 @@ export default defineEventHandler(async (event) => {
                 voter_account: account,
                 voter_guard: accountPubKey,
                 option: body.option,
-                refunded: 0,
-                redeemed_prize: 0,
-                slashed: 0,
             },
         });
 

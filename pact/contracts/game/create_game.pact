@@ -24,7 +24,7 @@
   ;; ------------------------------------------------------------------
   ;; Governance
   ;; ------------------------------------------------------------------
-  (defconst TREASURY-ACCOUNT:string "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086")
+  (defconst TREASURY_ACCOUNT:string "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086")
 
   (defcap GOVERNANCE () (enforce-keyset "free.game-admin-ks"))
 
@@ -32,7 +32,7 @@
     (let ((bal (coin.get-balance sender)))
       (enforce (>= bal amount) "Not enough balance.")))
 
-  (defcap CREATOR-FUNDS-AVAILABLE (session-id:string)
+  (defcap CREATORFUNDS_AVAILABLE (session-id:string)
     (with-read creator-locked-balances session-id { 
         'unlocked := unlocked, 
         'slashed := slashed 
@@ -40,13 +40,17 @@
         (enforce (not unlocked) "Funds already unlocked.")
         (enforce (not slashed) "Funds already slashed.")))
 
+  (defcap ACCOUNT_GUARD (account:string) 
+    (enforce-guard 
+      (at "guard" (coin.details account))
+    ))
+
   (defcap INTERNAL () true)
 
   ;; ------------------------------------------------------------------
   ;; Schemas & Tables
   ;; ------------------------------------------------------------------
   (defschema session
-    creator-guard:      guard
     creator-account:    string
     name:               string
     description:        string
@@ -87,7 +91,6 @@
   (deftable result_votes:{result_vote})
 
   (defschema creator-locked
-    owner-guard:   keyset
     owner-account: string
     amount:        decimal
     unlocked:      bool
@@ -126,9 +129,6 @@
         (= {} vote-data)
         "Already voted on this session's result."
       )))
-
-  (defun ensure-creator (s:object{session})
-    (enforce-guard (at 'creator-guard s)))
 
   (defun ensure-voter-participated (session-id:string voter:string)
       @doc "Check if the voter participated in the game session."
@@ -193,7 +193,7 @@
 
     (require-capability (INTERNAL))
 
-    (with-capability (CREATOR-FUNDS-AVAILABLE session-id)
+    (with-capability (CREATORFUNDS_AVAILABLE session-id)
       (update creator-locked-balances session-id { 'slashed: true })))
 
   ;; ------------------------------------------------------------------
@@ -202,18 +202,18 @@
   (defun deposit-to-treasury (sender:string amount:decimal)
     @doc "Deposit funds to treasury"
 
-    (require-capability (TRANSFER sender TREASURY-ACCOUNT amount))
+    (require-capability (TRANSFER sender TREASURY_ACCOUNT amount))
 
-    (coin.transfer sender TREASURY-ACCOUNT amount)
+    (coin.transfer sender TREASURY_ACCOUNT amount)
 
     true)
 
   (defun withdraw-from-treasury (receiver:string amount:decimal)
     @doc "Withdraw funds from treasury"
 
-    (require-capability (TRANSFER TREASURY-ACCOUNT receiver amount))
+    (require-capability (TRANSFER TREASURY_ACCOUNT receiver amount))
 
-    (coin.transfer TREASURY-ACCOUNT receiver amount)
+    (coin.transfer TREASURY_ACCOUNT receiver amount)
     
     true)
 
@@ -227,7 +227,6 @@
      expiration:string
      options:[string]
      participation-fee:decimal
-     creator-ks:keyset
      creator-account:string)
      @doc "Create a session. The caller provides their guard (`creator-ks`) so only they can reveal."
 
@@ -247,20 +246,18 @@
     (enforce (> participation-fee 0.0)
       "Participation fee must be greater then 0.")
 
-    (with-capability (TRANSFER creator-account TREASURY-ACCOUNT CREATE-GAME-LOCK-AMOUNT) 
+    (with-capability (TRANSFER creator-account TREASURY_ACCOUNT CREATE-GAME-LOCK-AMOUNT) 
       (deposit-to-treasury creator-account CREATE-GAME-LOCK-AMOUNT))
 
     (write creator-locked-balances session-id
-      { 'owner-guard:   creator-ks
-      , 'owner-account: creator-account
+      { 'owner-account: creator-account
       , 'amount:        CREATE-GAME-LOCK-AMOUNT
       , 'unlocked:      false
       , 'slashed:       false
       })
 
     (write sessions session-id
-      { 'creator-guard:      creator-ks
-      , 'creator-account:    creator-account
+      { 'creator-account:    creator-account
       , 'name:               name
       , 'description:        description
       , 'expiration:         (time expiration)
@@ -299,7 +296,7 @@
         (check-multiple-option-votes key)
         
         ;; Pay participation fee
-        (with-capability (TRANSFER voter-account TREASURY-ACCOUNT fee) 
+        (with-capability (TRANSFER voter-account TREASURY_ACCOUNT fee) 
           (deposit-to-treasury voter-account fee))
           
         (write option_votes key
@@ -317,26 +314,26 @@
   (defun reveal-correct (session-id:string correct-index:integer)
       @doc "Allows the session creator to submit a correct answer for the game session."
 
-      (let* ((current-session (get-session session-id)))
+      (let ((current-session (get-session session-id)))
         ;; Check if operation is possible at this point in time
         (enforce (< (now) (add-time (at 'expiration current-session) (days GRACE_DAYS)))
-            "Too late to reveal.")
+          "Too late to reveal.")
 
-        (ensure-creator current-session)
-        (ensure-expired current-session)
-        (ensure-not-revealed current-session)
-        (ensure-index-in-range (at 'options current-session) correct-index)
+        (with-capability (ACCOUNT_GUARD (at 'creator-account current-session))
+          (ensure-expired current-session)
+          (ensure-not-revealed current-session)
+          (ensure-index-in-range (at 'options current-session) correct-index)
 
-        (let ((votes (select option_votes (where 'session-id (= session-id))))
-          (winners (filter (lambda (v) (= (at 'option v) correct-index)) votes)))
+          (let ((votes (select option_votes (where 'session-id (= session-id))))
+            (winners (filter (lambda (v) (= (at 'option v) correct-index)) votes)))
 
-          (update sessions session-id { 
-            'correct: correct-index, 
-            'total-winners: (length winners), 
-            'result-released-at: (now) 
-          }))
-        
-        (get-session session-id)))
+            (update sessions session-id { 
+              'correct: correct-index, 
+              'total-winners: (length winners), 
+              'result-released-at: (now) 
+            }))
+          
+          (get-session session-id))))
 
   (defun vote-result (session-id:string voter-account:string is-right:bool)
       @doc "Allows users who pareticpated to vote if the session creator chosen result is correct or not."
@@ -447,23 +444,21 @@
     (with-read creator-locked-balances session-id { 
       'amount := amount, 
       'owner-account := account, 
-      'owner-guard := guard, 
       'unlocked := unlocked, 
       'slashed := slashed 
     }
-      (enforce-guard guard)
-      (enforce (not slashed) "Funds already slashed.")
-      (enforce (not unlocked) "Funds already claimed.")
+      (with-capability (ACCOUNT_GUARD account)
+        (enforce (not slashed) "Funds already slashed.")
+        (enforce (not unlocked) "Funds already claimed.")
 
-      (let ((current-session (get-session session-id)))
-        (enforce (or (at 'invalidated current-session) (at 'result-voted current-session))
-          "Creator funds are locked until the session is settled."))
+        (let ((current-session (get-session session-id)))
+          (enforce (or (at 'invalidated current-session) (at 'result-voted current-session))
+            "Creator funds are locked until the session is settled."))
 
-      (with-capability (TRANSFER TREASURY-ACCOUNT account amount) 
-        (withdraw-from-treasury account amount))
+        (with-capability (TRANSFER TREASURY_ACCOUNT account amount) 
+          (withdraw-from-treasury account amount))
 
-      (update creator-locked-balances session-id { 'unlocked: true })
-    
+        (update creator-locked-balances session-id { 'unlocked: true }))
     true))
 
   (defun claim-refund (session-id:string voter-account:string)
@@ -487,7 +482,7 @@
 
         (let ((amount (at 'participation-fee current-session))
           (account (at 'voter vote)))
-            (with-capability (TRANSFER TREASURY-ACCOUNT account amount) 
+            (with-capability (TRANSFER TREASURY_ACCOUNT account amount) 
               (withdraw-from-treasury account amount))
 
             (update option_votes key { 'refunded: true }))
@@ -524,7 +519,7 @@
           (reward (/ total-prize (dec (at 'total-winners current-session)))) 
           (voter-account (at 'voter vote)))
 
-            (with-capability (TRANSFER TREASURY-ACCOUNT voter-account reward) 
+            (with-capability (TRANSFER TREASURY_ACCOUNT voter-account reward) 
               (withdraw-from-treasury voter-account reward))
             
             (update option_votes key { 'redeemed-prize: true })

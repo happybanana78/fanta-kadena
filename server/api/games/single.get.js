@@ -26,8 +26,7 @@ export default defineEventHandler(async (event) => {
         publish_expiration: new Date(session.expiration) + 1,
         status: useParseStatus(session),
         total_voters: session.votes.length,
-        //is_expired: new Date() > new Date(session.expiration),
-        is_expired: true,
+        is_expired: new Date() > new Date(session.expiration),
     });
 
     return {
