@@ -66,6 +66,12 @@
           <p class="text-red-400 text-sm font-medium">{{ generalError }}</p>
         </div>
 
+        <div class="flex justify-center mt-12">
+          <p class="text-md font-semibold">
+            Current creation lock cost: <span class="font-bold">10 KDA</span>
+          </p>
+        </div>
+
         <DefaultButton
             text="Create Game Session"
             type="submit"
@@ -74,7 +80,6 @@
             :scale="true"
             :fade="false"
             :disabled="isSubmitting"
-            class="mt-12"
         />
       </form>
     </div>
