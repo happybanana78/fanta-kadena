@@ -92,6 +92,7 @@ import { useForm } from "vee-validate";
 import { toTypedSchema } from "@vee-validate/zod";
 import { createGameSchema } from "~~/shared/schemas/game/create.js";
 import {useWalletStore} from "~~/stores/wallet_store.js";
+import {useSettingsStore} from "~~/stores/settings_store.js";
 
 import DefaultInput from "~/components/form/inputs/DefaultInput.vue";
 import MultiAddInput from "~/components/form/inputs/MultiAddInput.vue";
@@ -100,6 +101,8 @@ import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 const router = useRouter();
 
 const walletStore = useWalletStore();
+
+const settingsStore = useSettingsStore();
 
 const generalError = ref('');
 
@@ -126,7 +129,10 @@ const createGameSession = handleSubmit(async (vals) => {
   try {
     const response = await $fetch('/api/games/create', {
       method: 'POST',
-      body: vals,
+      body: {
+        data: vals,
+        gasSettings: settingsStore.gas,
+      },
     });
 
     if (response.ok) {

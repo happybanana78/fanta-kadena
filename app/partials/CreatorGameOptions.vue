@@ -45,6 +45,7 @@
 <script setup>
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 import {useToast} from "~~/composables/useToast.js";
+import {useSettingsStore} from "~~/stores/settings_store.js";
 
 const props = defineProps({
   game: {
@@ -58,6 +59,8 @@ const props = defineProps({
     required: true,
   },
 });
+
+const settingsStore = useSettingsStore();
 
 const submittingResult = ref(false);
 
@@ -85,6 +88,7 @@ const submitResult = async () => {
         id: props.game.id,
         account: props.account,
         option: props.game.options.indexOf(selectedOption.value),
+        gasSettings: settingsStore.gas,
       },
     });
 

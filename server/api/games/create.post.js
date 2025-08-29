@@ -13,13 +13,15 @@ export default defineEventHandler(async (event) => {
 
     const body = await readBody(event);
 
-    const parsed = useValidate(createGameSchema, body);
+    const parsed = useValidate(createGameSchema, body.data);
 
     const parsedId = `${parsed.name.replace(/ /g, '-')}-${uuidv4()}`;
     const creatorAccount = parsed.account;
     const creatorPubKey = parsed.account.slice(2);
     const parsedDate = useParseDate(parsed.expiration, true);
     const parsedFee = parseFloat(parsed.participation_fee.toFixed(1));
+
+    const gasSettings = body.gasSettings;
 
     const client = createClient(host);
 
@@ -43,7 +45,8 @@ export default defineEventHandler(async (event) => {
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
-            senderAccount: creatorAccount
+            senderAccount: creatorAccount,
+            gasLimit: gasSettings.gasLimit,
         })
         .setNetworkId(config.KADENA_NETWORK_ID)
         .createTransaction();

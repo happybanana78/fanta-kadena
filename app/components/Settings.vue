@@ -1,19 +1,13 @@
 <template>
   <div>
     <DefaultButton
-        v-if="!walletStore.connected"
-        text="Connect Wallet"
         :action="toggleDrawer"
         class="mt-6"
-    />
-
-    <DefaultButton
-        v-if="walletStore.connected"
         :is-slot="true"
-        :action="disconnect"
-        class="mt-6"
     >
-      Connected <span class='ml-2'>{{ walletStore.account.slice(0, 10) }}...</span>
+        <span class="flex items-center justify-center">
+          <UIcon name="ic:round-settings" class="size-6" />
+        </span>
     </DefaultButton>
 
     <div
@@ -33,23 +27,12 @@
         <span class="sr-only">Close menu</span>
       </button>
 
-      <!-- ChainWeaver -->
-      <DefaultButton
-        v-if="walletStore.wallet !== 'chainweaver'"
-        text="ChainWeaver"
-        :full="true"
-        value="chainweaver"
-        :action="setWallet"
-        class="mt-6"
-      />
-
       <DefaultInput
-        v-if="walletStore.wallet === 'chainweaver'"
-        id="chainweaver-wallet"
-        placeholder="Enter your k:... account"
-        v-model="walletStore.account"
+        id="gas-limit"
+        label="Gas Limit"
+        v-model="settingsStore.gas.gasLimit"
         class="mt-6"
-        @keydown.enter="saveWallet"
+        @keydown.enter="saveSettings"
       />
     </div>
   </div>
@@ -59,11 +42,10 @@
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 import DefaultInput from "~/components/form/inputs/DefaultInput.vue";
 import {useSetData} from "~~/composables/useSetData.js";
+import {useSettingsStore} from "~~/stores/settings_store.js";
 import {useGetData} from "~~/composables/useGetData.js";
-import {useRemoveData} from "~~/composables/useRemoveData.js";
-import {useWalletStore} from "~~/stores/wallet_store.js";
 
-const walletStore = useWalletStore();
+const settingsStore = useSettingsStore();
 
 const showDrawer = ref(false);
 
@@ -71,34 +53,16 @@ const toggleDrawer = () => {
   showDrawer.value = !showDrawer.value;
 }
 
-const setWallet = (wallet) => {
-  walletStore.wallet = wallet;
-}
-
-const saveWallet = () => {
-  useSetData('wallet', {
-    name: walletStore.wallet,
-    account: walletStore.account,
-  });
-
-  walletStore.connected = true;
+const saveSettings = async () => {
+  await useSetData('gas-settings', settingsStore.gas);
   showDrawer.value = false;
 }
 
-const disconnect = () => {
-  walletStore.connected = false;
-  walletStore.wallet = null;
-  walletStore.account = '';
-  useRemoveData('wallet');
-}
-
 onMounted(async () => {
-  const data = await useGetData('wallet');
+  const data = await useGetData('gas-settings');
 
   if (data) {
-    walletStore.wallet = data.name;
-    walletStore.account = data.account;
-    walletStore.connected = true;
+    settingsStore.gas = data;
   }
 });
 </script>

@@ -1,7 +1,7 @@
 <template>
-  <div v-if="walletStore.connected && !loading" class="flex flex-col justify-center items-center p-6 space-y-8">
+  <div v-if="walletStore.connected && !loading" class="flex flex-col justify-center items-center p-6 space-y-8 animate-fadeIn">
     <!-- New Game Card -->
-    <div class="w-full max-w-xl rounded-2xl shadow-2xl bg-slate-700/80 backdrop-blur-md border border-slate-600 p-8 animate-fadeIn">
+    <div class="w-full max-w-xl rounded-2xl shadow-2xl bg-slate-700/80 backdrop-blur-md border border-slate-600 p-8">
       <h2 class="text-white text-2xl font-bold mb-4 text-center">Create a New Game</h2>
       <hr class="border-slate-600 mb-6" />
       <div class="flex justify-center">

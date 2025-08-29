@@ -4,7 +4,10 @@
       <div class="w-full">
         <div class="absolute top-0 w-full flex items-center justify-between">
           <nuxt-link to="/" class="ml-4 text-2xl">FANTA KADENA</nuxt-link>
-          <ConnectWallet/>
+          <div class="flex items-center space-x-4 mr-4">
+            <ConnectWallet/>
+            <Settings/>
+          </div>
         </div>
         <slot />
       </div>
@@ -12,9 +15,7 @@
   </UApp>
 </template>
 
-<script setup>
-import ConnectWallet from "~/components/ConnectWallet.vue";
-</script>
+<script setup></script>
 
 <style>
 @keyframes fadeIn {

@@ -13,6 +13,8 @@ export default defineEventHandler(async (event) => {
     const account = body.account;
     const accountPubKey = body.account.slice(2);
 
+    const gasSettings = body.gasSettings;
+
     const client = createClient(host);
 
     const args = [
@@ -30,7 +32,8 @@ export default defineEventHandler(async (event) => {
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
-            senderAccount: account
+            senderAccount: account,
+            gasLimit: gasSettings.gasLimit,
         })
         .setNetworkId(config.KADENA_NETWORK_ID)
         .createTransaction();
