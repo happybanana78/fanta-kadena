@@ -1,15 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 import {useParseDate} from "~~/composables/useParseDate.js";
 import {useParseStatus} from "~~/server/utils/useParseStatus.js";
+import {useSerialize} from "~~/server/utils/useSerialize.js";
 
 const prisma = new PrismaClient();
 
-export default defineEventHandler(async (event) => {
-    const query = getQuery(event);
+export default defineEventHandler(async () => {
+    const sessions = await prisma.session.findMany({
+        include: {
+            votes: true,
+            result_votes: true,
+        },
+    });
 
-    const sessions = await prisma.session.findMany();
-
-    const serialized = sessions.map(session => ({
+    const serialized = sessions.map(session => useSerialize({
         ...session,
         expiration: useParseDate(session.expiration, false),
         correct: session.correct.toString(),

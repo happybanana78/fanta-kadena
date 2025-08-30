@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
         },
         include: {
             votes: true,
+            result_votes: true,
         },
     });
 
@@ -23,7 +24,7 @@ export default defineEventHandler(async (event) => {
     const serialized = useSerialize({
         ...session,
         expiration: new Date(session.expiration).toString(),
-        publish_expiration: new Date(session.expiration) + 1,
+        publish_expiration: new Date(new Date(session.expiration).getTime() + 24 * 60 * 60 * 1000).toString(), // +1 day
         status: useParseStatus(session),
         total_voters: session.votes.length,
         is_expired: new Date() > new Date(session.expiration),

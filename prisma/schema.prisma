@@ -11,13 +11,22 @@ model OptionVote {
   id             String   @id @default(cuid())
   session_id     String
   session        Session  @relation(fields: [session_id], references: [id])
-  voter_account  String   @unique
+  voter_account  String
   voter_guard    String
   option         BigInt
   refunded       Boolean  @default(false)
   redeemed_prize Boolean  @default(false)
   slashed        Boolean  @default(false)
   voted_at       DateTime @default(now())
+}
+
+model ResultVote {
+  id            String   @id @default(cuid())
+  session_id    String
+  session       Session  @relation(fields: [session_id], references: [id])
+  voter_account String
+  right         Boolean
+  voted_at      DateTime @default(now())
 }
 
 model Session {
@@ -36,4 +45,5 @@ model Session {
   result_released_at DateTime     @default(now())
   created_at         DateTime     @default(now())
   votes              OptionVote[]
+  result_votes       ResultVote[]
 }

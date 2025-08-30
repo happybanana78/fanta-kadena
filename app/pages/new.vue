@@ -1,5 +1,5 @@
 <template>
-  <div v-if="walletStore.connected" class="mt-[100px] flex justify-center items-center">
+  <div v-if="walletStore.connected" class="flex justify-center items-center">
     <div class="w-full max-w-2xl rounded-2xl shadow-2xl bg-slate-700/80 backdrop-blur-md border border-slate-600 p-8 animate-fadeIn">
       <h2 class="text-3xl font-bold text-center text-white mb-6">Create a Game Session</h2>
       <form class="space-y-6" @submit.prevent="createGameSession">

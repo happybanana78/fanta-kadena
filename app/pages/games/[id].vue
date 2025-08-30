@@ -6,20 +6,26 @@
         <h1 class="text-white text-3xl font-bold">{{ game.name }}</h1>
         <div class="flex items-center space-x-4">
           <Timer
-              v-if="game.is_expired"
+              v-if="game.is_expired && new Date() < new Date(game.publish_expiration) && game.correct === '-1'"
               text="Result publish:"
               :target-date="game.publish_expiration"
               class="text-lg font-semibold"
           />
+          <p v-if="game.is_expired && new Date() >= new Date(game.publish_expiration) && game.correct === '-1'">
+            <span class="text-red-600">Result not published in time</span>
+          </p>
+          <p v-if="game.is_expired && game.correct !== '-1'">
+            <span class="text-green-600">Result Published</span>
+          </p>
           <span
               class="px-3 py-1 rounded-lg text-sm font-semibold"
               :class="{
-            'bg-green-600 text-white': game.status === 'Active',
-            'bg-red-600 text-white': game.status === 'Ended',
-            'bg-yellow-500 text-black': game.status === 'Pending'
-          }"
+                'bg-green-600 text-white': game.status.id === 'active' || game.status.id === 'ended',
+                'bg-red-600 text-white': game.status.id === 'refunded_no_players' || game.status.id === 'refunded_quorum_not_reached' || game.status.id === 'refunded_creator_no_publish',
+                'bg-yellow-500 text-black': game.status.id === 'voting_result' || game.status.id === 'pending_result',
+              }"
           >
-          {{ game.status }}
+          {{ game.status.name }}
         </span>
         </div>
       </div>
@@ -90,7 +96,7 @@
             :action="() => showOptions = true"
         />
         <DefaultButton
-            v-if="game.creator_account === currentAccount"
+            v-if="game.creator_account === currentAccount && game.correct === '-1' && new Date() < new Date(game.publish_expiration)"
             text="Publish Result"
             :scale="true"
             background-color="bg-green-700"

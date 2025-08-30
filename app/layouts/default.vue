@@ -9,13 +9,17 @@
             <Settings/>
           </div>
         </div>
-        <slot />
+
+        <div class="mt-16 p-8">
+          <slot />
+        </div>
       </div>
     </main>
   </UApp>
 </template>
 
-<script setup></script>
+<script setup>
+</script>
 
 <style>
 @keyframes fadeIn {

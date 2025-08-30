@@ -6,6 +6,8 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   runtimeConfig: {
+    ENVIRONMENT: process.env.ENVIRONMENT,
+
     KADENA_NETWORK_ID: process.env.KADENA_NETWORK_ID,
     KADENA_CHAIN_ID: process.env.KADENA_CHAIN_ID,
     KADENA_HOST: process.env.KADENA_HOST,

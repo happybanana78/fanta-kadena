@@ -24,7 +24,7 @@
   ;; ------------------------------------------------------------------
   ;; Governance
   ;; ------------------------------------------------------------------
-  (defconst TREASURY_ACCOUNT:string "k:3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086")
+  (defconst TREASURY_ACCOUNT:string (create-principal (create-user-guard (treasury-guard-predicate))))
 
   (defcap GOVERNANCE () (enforce-keyset "free.game-admin-ks"))
 
@@ -44,6 +44,12 @@
     (enforce-guard 
       (at "guard" (coin.details account))
     ))
+
+  (defcap TREASURY:bool ()
+    @doc "Internal capability allowing the module's code to operate the treasury."
+    (compose-capability (GOVERNANCE))
+    true
+  )
 
   (defcap INTERNAL () true)
 
@@ -199,10 +205,16 @@
   ;; ------------------------------------------------------------------
   ;; Transaction Helpers
   ;; ------------------------------------------------------------------
+  (defun treasury-guard-predicate:bool ()
+    @doc "The predicate for the game treasury user-guard. Only TREASURY can debit it."
+    (require-capability (TREASURY))
+    true
+  )
+
   (defun deposit-to-treasury (sender:string amount:decimal)
     @doc "Deposit funds to treasury"
 
-    (require-capability (TRANSFER sender TREASURY_ACCOUNT amount))
+    (require-capability (INTERNAL))
 
     (coin.transfer sender TREASURY_ACCOUNT amount)
 
@@ -211,11 +223,9 @@
   (defun withdraw-from-treasury (receiver:string amount:decimal)
     @doc "Withdraw funds from treasury"
 
-    (require-capability (TRANSFER TREASURY_ACCOUNT receiver amount))
-
-    (coin.transfer TREASURY_ACCOUNT receiver amount)
-    
-    true)
+    (with-capability (TREASURY)
+      (coin.transfer TREASURY_ACCOUNT receiver amount)
+      true))
 
   ;; ------------------------------------------------------------------
   ;; Public API
@@ -246,7 +256,7 @@
     (enforce (> participation-fee 0.0)
       "Participation fee must be greater then 0.")
 
-    (with-capability (TRANSFER creator-account TREASURY_ACCOUNT CREATE-GAME-LOCK-AMOUNT) 
+    (with-capability (INTERNAL) 
       (deposit-to-treasury creator-account CREATE-GAME-LOCK-AMOUNT))
 
     (write creator-locked-balances session-id
@@ -296,7 +306,7 @@
         (check-multiple-option-votes key)
         
         ;; Pay participation fee
-        (with-capability (TRANSFER voter-account TREASURY_ACCOUNT fee) 
+        (with-capability (INTERNAL) 
           (deposit-to-treasury voter-account fee))
           
         (write option_votes key
@@ -455,8 +465,7 @@
           (enforce (or (at 'invalidated current-session) (at 'result-voted current-session))
             "Creator funds are locked until the session is settled."))
 
-        (with-capability (TRANSFER TREASURY_ACCOUNT account amount) 
-          (withdraw-from-treasury account amount))
+        (withdraw-from-treasury account amount)
 
         (update creator-locked-balances session-id { 'unlocked: true }))
     true))
@@ -482,8 +491,7 @@
 
         (let ((amount (at 'participation-fee current-session))
           (account (at 'voter vote)))
-            (with-capability (TRANSFER TREASURY_ACCOUNT account amount) 
-              (withdraw-from-treasury account amount))
+            (withdraw-from-treasury account amount)
 
             (update option_votes key { 'refunded: true }))
         true))
@@ -519,8 +527,7 @@
           (reward (/ total-prize (dec (at 'total-winners current-session)))) 
           (voter-account (at 'voter vote)))
 
-            (with-capability (TRANSFER TREASURY_ACCOUNT voter-account reward) 
-              (withdraw-from-treasury voter-account reward))
+          (withdraw-from-treasury voter-account reward)
             
             (update option_votes key { 'redeemed-prize: true })
           true))))
@@ -575,6 +582,10 @@
     (create-table result_votes)
 
     (create-table creator-locked-balances)
+
+    (let ((guard (create-user-guard (free.game-session.treasury-guard-predicate))))
+      (coin.create-account TREASURY_ACCOUNT guard)
+    )
     
     true)
 )

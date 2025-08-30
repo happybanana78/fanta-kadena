@@ -29,7 +29,8 @@
 (begin-tx "load modules")
 
 (env-sigs [
-  { "key": "admin-key", "caps": [] }
+  { "key": "admin-key", "caps": [] },
+  { "key": "3dbde5910bccd15ccf0fabc4cb0fe30f5c27037d194ad84988d09542cbedf086", "caps": [] }
 ])
 
 (load "fungible-v2.pact")

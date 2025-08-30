@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import { Pact, createClient, createSignWithChainweaver, isSignedTransaction } from '@kadena/client';
-import {useParseDate} from "~~/composables/useParseDate.js";
 
 const prisma = new PrismaClient();
 
@@ -19,16 +18,16 @@ export default defineEventHandler(async (event) => {
 
     const args = [
         body.id,
-        { int: body.option },
+        account,
+        body.right,
     ];
 
-    const code = Pact.modules[config.MODULE_NAME]['reveal-correct'](...args);
+    const code = Pact.modules[config.MODULE_NAME]['vote-result'](...args);
 
     const pactTx = Pact.builder
         .execution(code)
         .addSigner(accountPubKey, (withCap) => [
             withCap('coin.GAS'),
-            withCap(`${config.MODULE_NAME}.ACCOUNT_GUARD`, account),
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
@@ -50,26 +49,12 @@ export default defineEventHandler(async (event) => {
             return { ok: false, error: listenRes.result.error };
         }
 
-        const data = listenRes.result.data;
-
-        // Update session
-        await prisma.session.update({
-            where: {
-                id: body.id,
-            },
+        // Save new vote to db
+        await prisma.resultVote.create({
             data: {
-                name: data.name,
-                description: data.description,
-                expiration: data.expiration.time,
-                options: data.options,
-                fee: data['participation-fee'],
-                creator_account: data['creator-account'],
-                result_released_at: config.ENVIRONMENT === 'local' ? new Date() : data['result-released-at'].time,
-                correct: data.correct.int,
-                invalidated: data.invalidated,
-                total_winners: data['total-winners'].int,
-                result_voted: data['result-voted'],
-                creator_slashed: data['creator-slashed'],
+                session_id: body.id,
+                voter_account: account,
+                right: body.right,
             },
         });
 

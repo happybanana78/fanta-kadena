@@ -17,7 +17,7 @@
       }"
       tabindex="-1"
     >
-      <h4 class="mb-1.5 leading-none text-xl font-semibold text-gray-900 dark:text-white">Select Wallet</h4>
+      <h4 class="mb-1.5 leading-none text-xl font-semibold text-gray-900 dark:text-white">Settings</h4>
       <button
         type="button"
         class="text-gray-400 cursor-pointer bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 absolute top-2.5 right-2.5 inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white"
