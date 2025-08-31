@@ -2,9 +2,13 @@ import {useParseDate} from "~~/composables/useParseDate.js";
 import {useAddToDate} from "~~/composables/useAddToDate.js";
 
 export const useParseStatus = (session) => {
+    const config = useRuntimeConfig();
+
     const today = useParseDate({date: new Date(), standard: true});
     const expiration = useParseDate({date: session.expiration, standard: true});
     const resultReleasedAt = useParseDate({date: session.result_released_at, standard: true});
+
+    const graceDays = parseFloat(config.public.GRACE_DAYS);
 
     if (
         today < expiration &&
@@ -19,7 +23,7 @@ export const useParseStatus = (session) => {
 
     else if (
         today >= expiration &&
-        today < useAddToDate(expiration, 'days', 1) && // +1 day
+        today < useAddToDate(expiration, 'days', graceDays) &&
         session.correct < 0
     ) {
         return {
@@ -50,7 +54,7 @@ export const useParseStatus = (session) => {
 
     else if (
         today >= expiration &&
-        today >= useAddToDate(expiration, 'days', 1) &&
+        today >= useAddToDate(expiration, 'days', graceDays) &&
         session.correct < 0
     ) {
         return {
@@ -61,10 +65,10 @@ export const useParseStatus = (session) => {
 
     else if (
         today >= expiration &&
-        today >= useAddToDate(expiration, 'days', 1) &&
+        today >= useAddToDate(expiration, 'days', graceDays) &&
         session.correct >= 0 &&
         session.votes.length > 0 &&
-        (session.result_votes.length / session.votes.length) < 0.8
+        ((session.result_votes.length / session.votes.length) * 100) < parseFloat(config.public.RESULT_VOTING_QUORUM)
     ) {
         return {
             id: 'refunded_no_quorum',

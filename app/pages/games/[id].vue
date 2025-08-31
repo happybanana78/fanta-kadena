@@ -37,7 +37,7 @@
           <Timer
               v-if="game.status.id === 'active'"
               text="Time left:"
-              :target-date="new Date(game.expiration).toString()"
+              :target-date="game.expiration"
               text-class="text-white"
               countdown-class="text-green-600"
           />

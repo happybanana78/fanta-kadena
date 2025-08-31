@@ -68,7 +68,7 @@
 
         <div class="flex justify-center mt-12">
           <p class="text-md font-semibold">
-            Current creation lock cost: <span class="font-bold">10 KDA</span>
+            Current creation lock cost: <span class="font-bold">{{ config.public.GAME_CREATOR_LOCK_AMOUNT }} KDA</span>
           </p>
         </div>
 
@@ -97,6 +97,8 @@ import {useSettingsStore} from "~~/stores/settings_store.js";
 import DefaultInput from "~/components/form/inputs/DefaultInput.vue";
 import MultiAddInput from "~/components/form/inputs/MultiAddInput.vue";
 import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
+
+const config = useRuntimeConfig();
 
 const router = useRouter();
 

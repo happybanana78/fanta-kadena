@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
         .execution(code)
         .addSigner(creatorPubKey, (withCap) => [
             withCap('coin.GAS'),
-            withCap('coin.TRANSFER', creatorAccount, treasuryAccount.data, 10.0),
+            withCap('coin.TRANSFER', creatorAccount, treasuryAccount.data, { decimal: parseFloat(config.public.GAME_CREATOR_LOCK_AMOUNT).toFixed(1)}),
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
