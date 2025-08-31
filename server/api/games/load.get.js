@@ -7,6 +7,9 @@ const prisma = new PrismaClient();
 
 export default defineEventHandler(async () => {
     const sessions = await prisma.session.findMany({
+        orderBy: {
+            created_at: 'desc',
+        },
         include: {
             votes: true,
             result_votes: true,
@@ -15,7 +18,7 @@ export default defineEventHandler(async () => {
 
     const serialized = sessions.map(session => useSerialize({
         ...session,
-        expiration: useParseDate(session.expiration, false),
+        expiration: useParseDate({date: session.expiration}),
         correct: session.correct.toString(),
         total_winners: session.total_winners.toString(),
         status: useParseStatus(session),

@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
     const serialized = useSerialize({
         ...vote,
-        voted_at: useParseDate(vote.voted_at, false),
+        voted_at: useParseDate({date: vote.voted_at}),
     });
 
     return {

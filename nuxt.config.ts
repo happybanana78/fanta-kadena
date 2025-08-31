@@ -15,8 +15,6 @@ export default defineNuxtConfig({
 
     GAS_PAYER_ACCOUNT: process.env.GAS_PAYER_ACCOUNT,
     GAS_PAYER_PUBKEY: process.env.GAS_PAYER_PUBKEY,
-
-    TREASURY_ACCOUNT: process.env.TREASURY_ACCOUNT,
   },
 
   css: ['~/assets/css/main.css'],

@@ -2,13 +2,13 @@ import {useParseDate} from "~~/composables/useParseDate.js";
 import {useAddToDate} from "~~/composables/useAddToDate.js";
 
 export const useParseStatus = (session) => {
-    const today = useParseDate(new Date(), true);
-    const expiration = useParseDate(session.expiration, true);
-    const resultReleasedAt = useParseDate(session.result_released_at, true);
+    const today = useParseDate({date: new Date(), standard: true});
+    const expiration = useParseDate({date: session.expiration, standard: true});
+    const resultReleasedAt = useParseDate({date: session.result_released_at, standard: true});
 
     if (
         today < expiration &&
-        resultReleasedAt <= useParseDate("1992-09-01", true) &&
+        resultReleasedAt <= useParseDate({date: "1992-09-01", standard: true}) &&
         session.correct < 0
     ) {
         return {
@@ -29,7 +29,7 @@ export const useParseStatus = (session) => {
     }
 
     else if (
-        resultReleasedAt > useParseDate("1992-09-01", true) &&
+        resultReleasedAt > useParseDate({date: "1992-09-01", standard: true}) &&
         session.correct >= 0
     ) {
         return {

@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { Pact, createClient, createSignWithChainweaver, isSignedTransaction, readKeyset } from '@kadena/client';
-import {useGetTreasuryAccount} from "~~/server/utils/useGetTreasuryAccount.js";
+import { Pact, createClient, createSignWithChainweaver, isSignedTransaction } from '@kadena/client';
 
 const prisma = new PrismaClient();
 
@@ -12,36 +11,22 @@ export default defineEventHandler(async (event) => {
 
     const account = body.account;
     const accountPubKey = body.account.slice(2);
-    const parsedFee = parseFloat(body.fee.toFixed(1));
 
     const gasSettings = body.gasSettings;
-
-    const treasuryAccount = await useGetTreasuryAccount();
-
-    if (!treasuryAccount.ok) {
-        return { ok: false, error: treasuryAccount.error };
-    }
 
     const client = createClient(host);
 
     const args = [
         body.id,
-        account,
-        readKeyset("voter-ks"),
-        { int: body.option },
     ];
 
-    const code = Pact.modules[config.MODULE_NAME]['vote-option'](...args);
+    const code = Pact.modules[config.MODULE_NAME]['claim-creator-funds'](...args);
 
     const pactTx = Pact.builder
         .execution(code)
-        .addData('voter-ks', {
-            keys: [accountPubKey],
-            pred: 'keys-all',
-        })
         .addSigner(accountPubKey, (withCap) => [
             withCap('coin.GAS'),
-            withCap('coin.TRANSFER', account, treasuryAccount.data, parsedFee),
+            withCap(`${config.MODULE_NAME}.ACCOUNT_GUARD`, account),
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
@@ -63,13 +48,13 @@ export default defineEventHandler(async (event) => {
             return { ok: false, error: listenRes.result.error };
         }
 
-        // Save new vote to db
-        await prisma.optionVote.create({
+        // Update session
+        await prisma.session.update({
+            where: {
+                id: body.id,
+            },
             data: {
-                session_id: body.id,
-                voter_account: account,
-                voter_guard: accountPubKey,
-                option: body.option,
+                invalidated: true,
             },
         });
 

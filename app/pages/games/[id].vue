@@ -6,23 +6,17 @@
         <h1 class="text-white text-3xl font-bold">{{ game.name }}</h1>
         <div class="flex items-center space-x-4">
           <Timer
-              v-if="game.is_expired && new Date() < new Date(game.publish_expiration) && game.correct === '-1'"
+              v-if="game.status.id === 'pending_result'"
               text="Result publish:"
               :target-date="game.publish_expiration"
               class="text-lg font-semibold"
           />
-          <p v-if="game.is_expired && new Date() >= new Date(game.publish_expiration) && game.correct === '-1'">
-            <span class="text-red-600">Result not published in time</span>
-          </p>
-          <p v-if="game.is_expired && game.correct !== '-1'">
-            <span class="text-green-600">Result Published</span>
-          </p>
           <span
               class="px-3 py-1 rounded-lg text-sm font-semibold"
               :class="{
-                'bg-green-600 text-white': game.status.id === 'active' || game.status.id === 'ended',
-                'bg-red-600 text-white': game.status.id === 'refunded_no_players' || game.status.id === 'refunded_quorum_not_reached' || game.status.id === 'refunded_creator_no_publish',
-                'bg-yellow-500 text-black': game.status.id === 'voting_result' || game.status.id === 'pending_result',
+                'bg-green-700 text-white': game.status.id === 'active' || game.status.id === 'ended',
+                'bg-red-700 text-white': game.status.id === 'refunded_no_players' || game.status.id === 'refunded_quorum_not_reached' || game.status.id === 'refunded_creator_no_publish',
+                'bg-yellow-600 text-black': game.status.id === 'voting_result' || game.status.id === 'pending_result',
               }"
           >
           {{ game.status.name }}
@@ -39,9 +33,9 @@
       <div v-if="!showOptions" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div class="bg-slate-800 rounded-xl p-4 shadow-md">
           <h3 class="text-white font-semibold mb-2">Voting Expiration</h3>
-          <p class="text-slate-300">{{ useParseDate(game.expiration, false) }}</p>
+          <p class="text-slate-300">{{ useParseDate({date: game.expiration}) }}</p>
           <Timer
-              v-if="new Date() < new Date(game.expiration)"
+              v-if="game.status.id === 'active'"
               text="Time left:"
               :target-date="new Date(game.expiration).toString()"
               text-class="text-white"
@@ -88,30 +82,20 @@
       </div>
 
       <!-- Action Buttons -->
-      <div v-if="!showOptions" class="flex justify-end space-x-4">
-        <DefaultButton
-            v-if="!alreadyVoted && !game.is_expired && game.creator_account !== currentAccount"
-            text="Join Game"
-            :scale="true"
-            :action="() => showOptions = true"
-        />
-        <DefaultButton
-            v-if="game.creator_account === currentAccount && game.correct === '-1' && new Date() < new Date(game.publish_expiration)"
-            text="Publish Result"
-            :scale="true"
-            background-color="bg-green-700"
-            hover-color="hover:bg-green-600"
-            :disabled="!game.is_expired"
-            :action="() => showOptions = true"
-        />
-        <DefaultButton
-            text="Back to Games"
-            :scale="true"
-            background-color="bg-slate-500"
-            hover-color="hover:bg-slate-400"
-            link="/"
-        />
-      </div>
+      <PlayerActionButtons
+          v-if="!showOptions && game.creator_account !== currentAccount"
+          :game="game"
+          :account="currentAccount"
+          :already-voted="alreadyVoted"
+          @show-options="showOptions = true"
+      />
+
+      <CreatorActionButtons
+          v-if="!showOptions && game.creator_account === currentAccount"
+          :game="game"
+          :account="currentAccount"
+          @show-options="showOptions = true"
+      />
     </div>
 
     <div v-else>
@@ -137,6 +121,8 @@ import DefaultButton from "~/components/form/buttons/DefaultButton.vue";
 import PageLoader from "~/components/loaders/PageLoader.vue";
 import CreatorGameOptions from "~/partials/CreatorGameOptions.vue";
 import PlayerGameOptions from "~/partials/PlayerGameOptions.vue";
+import PlayerActionButtons from "~/partials/PlayerActionButtons.vue";
+import CreatorActionButtons from "~/partials/CreatorActionButtons.vue";
 
 const route = useRoute();
 

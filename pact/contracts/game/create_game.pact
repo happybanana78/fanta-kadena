@@ -378,7 +378,7 @@
     
     (let* ((current-session (get-session session-id)))      
       ;; Check if the game is already over
-      (if (and (not (at 'invalidated current-session)) (not (at 'result-voted current-session)))
+      (if (or (at 'invalidated current-session) (at 'result-voted current-session))
         "The game was already settled."
 
         (do 

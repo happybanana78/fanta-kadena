@@ -4,6 +4,7 @@ import { createGameSchema } from "~~/shared/schemas/game/create.js";
 import {useValidate} from "~~/server/utils/useValidate.js";
 import { v4 as uuidv4 } from 'uuid';
 import {useParseDate} from "~~/composables/useParseDate.js";
+import {useGetTreasuryAccount} from "~~/server/utils/useGetTreasuryAccount.js";
 
 const prisma = new PrismaClient();
 
@@ -18,10 +19,16 @@ export default defineEventHandler(async (event) => {
     const parsedId = `${parsed.name.replace(/ /g, '-')}-${uuidv4()}`;
     const creatorAccount = parsed.account;
     const creatorPubKey = parsed.account.slice(2);
-    const parsedDate = useParseDate(parsed.expiration, true);
+    const parsedDate = useParseDate({date: parsed.expiration, toIso: true});
     const parsedFee = parseFloat(parsed.participation_fee.toFixed(1));
 
     const gasSettings = body.gasSettings;
+
+    const treasuryAccount = await useGetTreasuryAccount();
+
+    if (!treasuryAccount.ok) {
+        return { ok: false, error: treasuryAccount.error };
+    }
 
     const client = createClient(host);
 
@@ -41,7 +48,7 @@ export default defineEventHandler(async (event) => {
         .execution(code)
         .addSigner(creatorPubKey, (withCap) => [
             withCap('coin.GAS'),
-            withCap('coin.TRANSFER', creatorAccount, config.TREASURY_ACCOUNT, 10.0),
+            withCap('coin.TRANSFER', creatorAccount, treasuryAccount.data, 10.0),
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
