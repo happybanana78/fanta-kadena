@@ -26,11 +26,7 @@
   ;; ------------------------------------------------------------------
   (defconst TREASURY_ACCOUNT:string (create-principal (create-user-guard (treasury-guard-predicate))))
 
-  (defcap GOVERNANCE () (enforce-keyset "free.game-admin-ks"))
-
-  (defcap TRANSFER (sender:string receiver:string amount:decimal)
-    (let ((bal (coin.get-balance sender)))
-      (enforce (>= bal amount) "Not enough balance.")))
+  (defcap GOVERNANCE:bool () (enforce-keyset "free.game-admin-ks"))
 
   (defcap CREATORFUNDS_AVAILABLE (session-id:string)
     (with-read creator-locked-balances session-id { 
@@ -40,18 +36,17 @@
         (enforce (not unlocked) "Funds already unlocked.")
         (enforce (not slashed) "Funds already slashed.")))
 
-  (defcap ACCOUNT_GUARD (account:string) 
+  (defcap ACCOUNT_GUARD:bool (account:string)
     (enforce-guard 
       (at "guard" (coin.details account))
     ))
 
   (defcap TREASURY:bool ()
     @doc "Internal capability allowing the module's code to operate the treasury."
-    (compose-capability (GOVERNANCE))
     true
   )
 
-  (defcap INTERNAL () true)
+  (defcap INTERNAL:bool () true)
 
   ;; ------------------------------------------------------------------
   ;; Schemas & Tables
@@ -223,6 +218,8 @@
   (defun withdraw-from-treasury (receiver:string amount:decimal)
     @doc "Withdraw funds from treasury"
 
+    (require-capability (INTERNAL))
+
     (with-capability (TREASURY)
       (coin.transfer TREASURY_ACCOUNT receiver amount)
       true))
@@ -387,10 +384,6 @@
             true
             (enforce false "Games session expiration date not reached."))
 
-          ;; Check result publishing grace time
-          (enforce (<= (add-time (at 'expiration current-session) (days GRACE_DAYS)) (now))
-            "Creator has still time to publish.")
-
           ;; Check if at least 1 player voted
           (if (<= (count-option-votes session-id) 0)
             (do
@@ -398,6 +391,10 @@
               "No votes, game refunded.")
 
             (do
+              ;; Check result publishing grace time
+              (enforce (<= (add-time (at 'expiration current-session) (days GRACE_DAYS)) (now))
+                "Creator has still time to publish.")
+
               ;; Check if game session creator submitted an answer
               (enforce (= (at 'correct current-session) -1)
                 "Creator has published a result in time.")
@@ -465,7 +462,8 @@
           (enforce (or (at 'invalidated current-session) (at 'result-voted current-session))
             "Creator funds are locked until the session is settled."))
 
-        (withdraw-from-treasury account amount)
+        (with-capability (INTERNAL)
+          (withdraw-from-treasury account amount))
 
         (update creator-locked-balances session-id { 'unlocked: true }))
     true))
@@ -491,7 +489,8 @@
 
         (let ((amount (at 'participation-fee current-session))
           (account (at 'voter vote)))
-            (withdraw-from-treasury account amount)
+            (with-capability (INTERNAL)
+              (withdraw-from-treasury account amount))
 
             (update option_votes key { 'refunded: true }))
         true))
@@ -527,8 +526,9 @@
           (reward (/ total-prize (dec (at 'total-winners current-session)))) 
           (voter-account (at 'voter vote)))
 
-          (withdraw-from-treasury voter-account reward)
-            
+          (with-capability (INTERNAL)
+            (withdraw-from-treasury voter-account reward))
+
             (update option_votes key { 'redeemed-prize: true })
           true))))
 

@@ -41,6 +41,7 @@ model Session {
   result_voted       Boolean      @default(false)
   invalidated        Boolean      @default(false)
   creator_slashed    Boolean      @default(false)
+  creator_refunded   Boolean      @default(false)
   total_winners      BigInt       @default(0)
   result_released_at DateTime     @default(now())
   created_at         DateTime     @default(now())

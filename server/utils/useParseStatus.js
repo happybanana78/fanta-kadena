@@ -24,7 +24,8 @@ export const useParseStatus = (session) => {
     else if (
         today >= expiration &&
         today < useAddToDate(expiration, 'days', graceDays) &&
-        session.correct < 0
+        session.correct < 0 &&
+        session.votes.length > 0
     ) {
         return {
             id: 'pending_result',

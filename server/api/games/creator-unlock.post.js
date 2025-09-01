@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { Pact, createClient, createSignWithChainweaver, isSignedTransaction } from '@kadena/client';
+import {useGetTreasuryAccount} from "~~/server/utils/useGetTreasuryAccount.js";
 
 const prisma = new PrismaClient();
 
@@ -14,6 +15,12 @@ export default defineEventHandler(async (event) => {
 
     const gasSettings = body.gasSettings;
 
+    const treasuryAccount = await useGetTreasuryAccount();
+
+    if (!treasuryAccount.ok) {
+        return { ok: false, error: treasuryAccount.error };
+    }
+
     const client = createClient(host);
 
     const args = [
@@ -27,6 +34,7 @@ export default defineEventHandler(async (event) => {
         .addSigner(accountPubKey, (withCap) => [
             withCap('coin.GAS'),
             withCap(`${config.MODULE_NAME}.ACCOUNT_GUARD`, account),
+            withCap('coin.TRANSFER', treasuryAccount.data, account, { decimal: parseFloat(config.public.GAME_CREATOR_LOCK_AMOUNT).toFixed(1)}),
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
@@ -55,6 +63,7 @@ export default defineEventHandler(async (event) => {
             },
             data: {
                 invalidated: true,
+                creator_refunded: true,
             },
         });
 

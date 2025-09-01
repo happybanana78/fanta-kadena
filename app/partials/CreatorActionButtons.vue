@@ -4,9 +4,13 @@
       <p class="text-red-400 text-sm font-medium">{{ generalError }}</p>
     </div>
 
+    <div v-if="game.creator_refunded" class="flex flex-col items-center mt-2 mb-6">
+      <p class="text-xl font-bold">You Already Re-Claimed Your Funds</p>
+    </div>
+
     <div class="flex justify-end space-x-4">
       <DefaultButton
-          v-if="game.correct === '-1' && new Date() < new Date(game.publish_expiration)"
+          v-if="game.status.id === 'pending_result'"
           text="Publish Result"
           :scale="true"
           background-color="bg-green-700"
@@ -15,7 +19,7 @@
           :action="() => emit('show-options')"
       />
       <DefaultButton
-          v-if="game.status.id === 'refunded_no_players' || game.status.id === 'refunded_no_quorum'"
+          v-if="(game.status.id === 'refunded_no_players' || game.status.id === 'refunded_no_quorum') && !game.creator_refunded"
           text="Unlock Funds"
           :scale="true"
           background-color="bg-red-700"
