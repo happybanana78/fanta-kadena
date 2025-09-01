@@ -63,14 +63,14 @@
       </div>
 
       <CreatorGameOptions
-          v-if="showOptions && game.is_expired && game.creator_account === currentAccount"
+          v-if="showOptions && game.status.id === 'pending_result' && game.creator_account === currentAccount"
           :game="game"
           :account="currentAccount"
           @toggle-options="showOptions = false"
       />
 
       <PlayerGameOptions
-          v-if="showOptions && !game.is_expired && game.creator_account !== currentAccount"
+          v-if="showOptions && game.status.id === 'active' && game.creator_account !== currentAccount"
           :game="game"
           :account="currentAccount"
           @toggle-options="showOptions = false"
@@ -94,7 +94,7 @@
           v-if="!showOptions && game.creator_account === currentAccount"
           :game="game"
           :account="currentAccount"
-          @show-options="showOptions = true"
+          @show-options="init"
       />
     </div>
 
@@ -175,6 +175,7 @@ const loadVote = async () => {
 
 const init = async () => {
   loading.value = true;
+  showOptions.value = false;
 
   await loadGame();
 

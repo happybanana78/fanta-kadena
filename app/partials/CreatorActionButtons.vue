@@ -5,7 +5,7 @@
     </div>
 
     <div v-if="game.creator_refunded" class="flex flex-col items-center mt-2 mb-6">
-      <p class="text-xl font-bold">You Already Re-Claimed Your Funds</p>
+      <p class="text-xl font-bold">You Already Unlocked Your Funds</p>
     </div>
 
     <div class="flex justify-end space-x-4">
@@ -15,7 +15,7 @@
           :scale="true"
           background-color="bg-green-700"
           hover-color="hover:bg-green-600"
-          :disabled="!game.is_expired"
+          :disabled="game.status.id === 'voting_result'"
           :action="() => emit('show-options')"
       />
       <DefaultButton
@@ -78,6 +78,7 @@ const unlockFunds = async () => {
     });
 
     if (response.ok) {
+      emit('show-options');
       useToast('Funds unlocked successfully!', 'green');
     } else {
       generalError.value = response?.error?.message ?? 'Error during funds unlock.';
