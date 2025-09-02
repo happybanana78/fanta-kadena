@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
         ...session,
         expiration: useParseDate({date: session.expiration, standard: true}).toString(),
         publish_expiration: useAddToDate(useParseDate({date: session.expiration, standard: true}), 'days', parseFloat(config.public.GRACE_DAYS)),
+        result_voting_expiration: useAddToDate(useParseDate({date: session.result_released_at, standard: true}), 'days', parseFloat(config.public.GRACE_DAYS) + 1), // added +1 cause the expiration day still counts
         status: useParseStatus(session),
         total_voters: session.votes.length,
         is_expired: useParseDate({date: new Date(), standard: true}) > useParseDate({date: session.expiration, standard: true}),

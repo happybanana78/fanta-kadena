@@ -11,6 +11,12 @@
               :target-date="game.publish_expiration"
               class="text-lg font-semibold"
           />
+          <Timer
+              v-if="game.status.id === 'voting_result'"
+              text="Time left to vote:"
+              :target-date="game.result_voting_expiration"
+              class="text-lg font-semibold"
+          />
           <span
               class="px-3 py-1 rounded-lg text-sm font-semibold"
               :class="{
@@ -77,9 +83,16 @@
           @vote-success="alreadyVoted = true"
       />
 
-      <div v-if="alreadyVoted" class="flex flex-col items-center mt-2 mb-6">
+      <div v-if="alreadyVoted && game.status.id === 'active'" class="flex flex-col items-center mt-2 mb-6">
         <p class="text-xl font-bold">You Already Voted For This Game</p>
       </div>
+
+      <ResultVoteCard
+          :game="game"
+          :account="currentAccount"
+          :already-voted-result="alreadyVotedResult"
+          @vote-success="init"
+      />
 
       <!-- Action Buttons -->
       <PlayerActionButtons
@@ -123,6 +136,7 @@ import CreatorGameOptions from "~/partials/CreatorGameOptions.vue";
 import PlayerGameOptions from "~/partials/PlayerGameOptions.vue";
 import PlayerActionButtons from "~/partials/PlayerActionButtons.vue";
 import CreatorActionButtons from "~/partials/CreatorActionButtons.vue";
+import ResultVoteCard from "~/partials/ResultVoteCard.vue";
 
 const route = useRoute();
 
@@ -139,6 +153,8 @@ const showOptions = ref(false);
 const currentAccount = ref(null);
 
 const alreadyVoted = ref(false);
+
+const alreadyVotedResult = ref(false);
 
 const loadGame = async () => {
   try {
@@ -173,6 +189,23 @@ const loadVote = async () => {
   }
 }
 
+const loadResultVote = async () => {
+  try {
+    const response = await $fetch('/api/games/votes/result/single', {
+      params: {
+        account: currentAccount.value,
+        session_id: route.params.id,
+      }
+    });
+
+    if (response.ok) {
+      alreadyVotedResult.value = true;
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}
+
 const init = async () => {
   loading.value = true;
   showOptions.value = false;
@@ -181,8 +214,12 @@ const init = async () => {
 
   currentAccount.value = walletStore.account;
   alreadyVoted.value = false;
+  alreadyVotedResult.value = false;
 
-  await loadVote();
+  if (game.value.creator_account !== currentAccount.value) {
+    await loadVote();
+    await loadResultVote();
+  }
 
   loading.value = false;
 }

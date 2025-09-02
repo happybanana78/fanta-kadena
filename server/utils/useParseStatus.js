@@ -35,6 +35,7 @@ export const useParseStatus = (session) => {
 
     else if (
         resultReleasedAt > useParseDate({date: "1992-09-01", standard: true}) &&
+        today <= useAddToDate(resultReleasedAt, 'days', graceDays) &&
         session.correct >= 0
     ) {
         return {
