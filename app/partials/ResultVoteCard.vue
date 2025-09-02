@@ -1,5 +1,8 @@
 <template>
-  <div v-if="game.status.id === 'voting_result'" class="flex flex-col items-center mt-2 mb-6 bg-slate-800 rounded-xl p-4 shadow-md border-2 border-green-700">
+  <div
+      v-if="game.status.id === 'voting_result' && game.creator_account !== account"
+      class="flex flex-col items-center mt-2 mb-6 bg-slate-800 rounded-xl p-4 shadow-md border-2 border-green-700"
+  >
     <p class="text-xl font-bold">Published Result:</p>
     <span class="text-lg font-semibold text-green-600">{{ game.options[game.correct] }}</span>
 
