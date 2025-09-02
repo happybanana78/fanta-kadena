@@ -28,7 +28,7 @@
 
   (defcap GOVERNANCE:bool () (enforce-keyset "free.game-admin-ks"))
 
-  (defcap CREATORFUNDS_AVAILABLE (session-id:string)
+  (defcap CREATORFUNDS_AVAILABLE:bool (session-id:string)
     (with-read creator-locked-balances session-id { 
         'unlocked := unlocked, 
         'slashed := slashed 
@@ -46,7 +46,10 @@
     true
   )
 
-  (defcap INTERNAL:bool () true)
+  (defcap INTERNAL:bool () 
+    @doc "Internal capability protecting some module's functions from direct external access."
+    true
+  )
 
   ;; ------------------------------------------------------------------
   ;; Schemas & Tables
@@ -72,7 +75,6 @@
   (defschema option_vote
     session-id:     string
     voter:          string
-    voter-guard:    guard
     option:         integer
     refunded:       bool
     redeemed-prize: bool
@@ -282,7 +284,7 @@
     (get-session session-id)
   )
 
-  (defun vote-option (session-id:string voter-account:string voter-ks:keyset option-index:integer)
+  (defun vote-option (session-id:string voter-account:string option-index:integer)
     @doc "Cast a vote with the option you think is gonna be correct."
 
     ;; Validate option
@@ -309,7 +311,6 @@
         (write option_votes key
           { 'session-id:     session-id
           , 'voter:          voter-account
-          , 'voter-guard:    voter-ks
           , 'option:         option-index
           , 'refunded:       false
           , 'redeemed-prize: false
@@ -504,32 +505,31 @@
 
       (enforce (!= vote {}) 
         "Player vote does not exist.")
-
-      (enforce-guard (at 'voter-guard vote))
       
-      (ensure-not-invalidated current-session)
-      (ensure-result-voted current-session)
+      (with-capability (ACCOUNT_GUARD (at 'voter vote))
+        (ensure-not-invalidated current-session)
+        (ensure-result-voted current-session)
 
-      (enforce (not (at 'redeemed-prize vote)) 
-        "Reward already redeemed.")
+        (enforce (not (at 'redeemed-prize vote)) 
+          "Reward already redeemed.")
 
-      (enforce (not (at 'slashed vote)) 
-        "Reward already slashed for continuous result voting refusal.")
+        (enforce (not (at 'slashed vote)) 
+          "Reward already slashed for continuous result voting refusal.")
 
-      (enforce (<= (add-time (at 'result-released-at current-session) (days PLAYER_REWARD_LOCK_TIME)) (now)) 
-        (format "Reward lock period of {} days is not passed yet." [PLAYER_REWARD_LOCK_TIME]))
-      
-      (if (!= (at 'option vote) correct-option)
-        (enforce false "Player did not get the result right.")
-        (let ((total-prize (* (at 'participation-fee current-session) (count-option-votes session-id))) 
-          (reward (/ total-prize (dec (at 'total-winners current-session)))) 
-          (voter-account (at 'voter vote)))
+        (enforce (<= (add-time (at 'result-released-at current-session) (days PLAYER_REWARD_LOCK_TIME)) (now)) 
+          (format "Reward lock period of {} days is not passed yet." [PLAYER_REWARD_LOCK_TIME]))
+        
+        (if (!= (at 'option vote) correct-option)
+          (enforce false "Player did not get the result right.")
+          (let ((total-prize (* (at 'participation-fee current-session) (count-option-votes session-id))) 
+            (reward (/ total-prize (dec (at 'total-winners current-session)))) 
+            (voter-account (at 'voter vote)))
 
-          (with-capability (INTERNAL)
-            (withdraw-from-treasury voter-account reward))
+            (with-capability (INTERNAL)
+              (withdraw-from-treasury voter-account reward))
 
-            (update option_votes key { 'redeemed-prize: true })
-          true))))
+              (update option_votes key { 'redeemed-prize: true })
+      true)))))
 
   ;; ------------------------------------------------------------------
   ;; Query helpers

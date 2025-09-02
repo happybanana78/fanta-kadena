@@ -12,7 +12,6 @@ model OptionVote {
   session_id     String
   session        Session  @relation(fields: [session_id], references: [id])
   voter_account  String
-  voter_guard    String
   option         BigInt
   refunded       Boolean  @default(false)
   redeemed_prize Boolean  @default(false)

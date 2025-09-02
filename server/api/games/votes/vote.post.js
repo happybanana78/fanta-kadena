@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { Pact, createClient, createSignWithChainweaver, isSignedTransaction, readKeyset } from '@kadena/client';
+import { Pact, createClient, createSignWithChainweaver, isSignedTransaction } from '@kadena/client';
 import {useGetTreasuryAccount} from "~~/server/utils/useGetTreasuryAccount.js";
 
 const prisma = new PrismaClient();
@@ -27,7 +27,6 @@ export default defineEventHandler(async (event) => {
     const args = [
         body.id,
         account,
-        readKeyset("voter-ks"),
         { int: body.option },
     ];
 
@@ -35,10 +34,6 @@ export default defineEventHandler(async (event) => {
 
     const pactTx = Pact.builder
         .execution(code)
-        .addData('voter-ks', {
-            keys: [accountPubKey],
-            pred: 'keys-all',
-        })
         .addSigner(accountPubKey, (withCap) => [
             withCap('coin.GAS'),
             withCap('coin.TRANSFER', account, treasuryAccount.data, parsedFee),
@@ -68,7 +63,6 @@ export default defineEventHandler(async (event) => {
             data: {
                 session_id: body.id,
                 voter_account: account,
-                voter_guard: accountPubKey,
                 option: body.option,
             },
         });
