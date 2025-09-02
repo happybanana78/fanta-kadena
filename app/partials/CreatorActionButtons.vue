@@ -78,7 +78,7 @@ const unlockFunds = async () => {
     });
 
     if (response.ok) {
-      emit('show-options');
+      emit('funds-unlocked');
       useToast('Funds unlocked successfully!', 'green');
     } else {
       generalError.value = response?.error?.message ?? 'Error during funds unlock.';
@@ -91,7 +91,7 @@ const unlockFunds = async () => {
   }
 }
 
-const emit = defineEmits(['show-options']);
+const emit = defineEmits(['show-options', 'funds-unlocked']);
 </script>
 
 <style scoped></style>

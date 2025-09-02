@@ -100,14 +100,17 @@
           :game="game"
           :account="currentAccount"
           :already-voted="alreadyVoted"
+          :already-refunded="alreadyRefunded"
           @show-options="showOptions = true"
+          @refund-claimed="init"
       />
 
       <CreatorActionButtons
           v-if="!showOptions && game.creator_account === currentAccount"
           :game="game"
           :account="currentAccount"
-          @show-options="init"
+          @show-options="showOptions = true"
+          @funds-unlocked="init"
       />
     </div>
 
@@ -156,6 +159,8 @@ const alreadyVoted = ref(false);
 
 const alreadyVotedResult = ref(false);
 
+const alreadyRefunded = ref(false);
+
 const loadGame = async () => {
   try {
     const response = await $fetch('/api/games/single', {
@@ -181,8 +186,14 @@ const loadVote = async () => {
       }
     });
 
-    if (response.ok) {
-      alreadyVoted.value = true;
+    if (!response.ok) {
+      return;
+    }
+
+    alreadyVoted.value = true;
+
+    if (response.data.refunded) {
+      alreadyRefunded.value = true;
     }
   } catch (error) {
     console.log(error);
@@ -198,9 +209,11 @@ const loadResultVote = async () => {
       }
     });
 
-    if (response.ok) {
-      alreadyVotedResult.value = true;
+    if (!response.ok) {
+      return;
     }
+
+    alreadyVotedResult.value = true;
   } catch (error) {
     console.log(error);
   }
@@ -215,6 +228,7 @@ const init = async () => {
   currentAccount.value = walletStore.account;
   alreadyVoted.value = false;
   alreadyVotedResult.value = false;
+  alreadyRefunded.value = false;
 
   if (game.value.creator_account !== currentAccount.value) {
     await loadVote();

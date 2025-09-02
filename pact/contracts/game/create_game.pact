@@ -480,19 +480,18 @@
         (enforce (!= vote {}) 
           "Player vote does not exist.")
 
-        (enforce-guard (at 'voter-guard vote))
+        (with-capability (ACCOUNT_GUARD (at 'voter vote))
+          (ensure-invalidated current-session)
 
-        (ensure-invalidated current-session)
+          (enforce (not (at 'refunded vote))
+            "Player already refunded.")
 
-        (enforce (not (at 'refunded vote)) 
-          "Player already refunded.")
+          (let ((amount (at 'participation-fee current-session))
+            (account (at 'voter vote)))
+              (with-capability (INTERNAL)
+                (withdraw-from-treasury account amount))
 
-        (let ((amount (at 'participation-fee current-session))
-          (account (at 'voter vote)))
-            (with-capability (INTERNAL)
-              (withdraw-from-treasury account amount))
-
-            (update option_votes key { 'refunded: true }))
+              (update option_votes key { 'refunded: true })))
         true))
 
   (defun claim-player-reward (session-id:string voter-account:string)

@@ -18,6 +18,8 @@ model OptionVote {
   redeemed_prize Boolean  @default(false)
   slashed        Boolean  @default(false)
   voted_at       DateTime @default(now())
+
+  @@unique([session_id, voter_account])
 }
 
 model ResultVote {
@@ -27,6 +29,8 @@ model ResultVote {
   voter_account String
   right         Boolean
   voted_at      DateTime @default(now())
+
+  @@unique([session_id, voter_account])
 }
 
 model Session {
