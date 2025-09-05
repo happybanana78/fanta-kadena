@@ -26,6 +26,16 @@
           :action="claimRefund"
       />
       <DefaultButton
+          v-if="game.status.id === 'ended' && isWinner"
+          text="Claim Reward"
+          :scale="true"
+          background-color="bg-green-700"
+          hover-color="hover:bg-green-600"
+          :loading="rewarding"
+          :disabled="rewarding"
+          :action="claimReward"
+      />
+      <DefaultButton
           text="Back to Games"
           :scale="true"
           background-color="bg-slate-500"
@@ -61,11 +71,17 @@ const props = defineProps({
     type: Boolean,
     required: true,
   },
+  isWinner: {
+    type: Boolean,
+    required: true,
+  },
 });
 
 const settingsStore = useSettingsStore();
 
 const refunding = ref(false);
+
+const rewarding = ref(false);
 
 const generalError = ref('');
 
@@ -81,6 +97,7 @@ const claimRefund = async () => {
         fee: props.game.fee,
         slashCreator: props.game.status.id === 'refunded_creator_no_publish',
         gasSettings: settingsStore.gas,
+        checkForEnding: props.game.status.id === 'ended',
       },
     });
 
@@ -98,7 +115,37 @@ const claimRefund = async () => {
   }
 }
 
-const emit = defineEmits(['show-options', 'refund-claimed']);
+const claimReward = async () => {
+  rewarding.value = true;
+
+  try {
+    const response = await $fetch('/api/games/claim-reward', {
+      method: 'POST',
+      body: {
+        id: props.game.id,
+        account: props.account,
+        fee: props.game.fee,
+        winners: props.game.total_winners,
+        gasSettings: settingsStore.gas,
+        checkForEnding: props.game.status.id === 'ended',
+      },
+    });
+
+    if (response.ok) {
+      emit('reward-claimed');
+      useToast('Reward claimed successfully!', 'green');
+    } else {
+      generalError.value = response?.error?.message ?? 'Error during reward claim.';
+      useToast('Error during reward claim', 'red');
+    }
+  } catch (error) {
+    useToast('Error during reward claim', 'red');
+  } finally {
+    rewarding.value = false;
+  }
+}
+
+const emit = defineEmits(['show-options', 'refund-claimed', 'reward-claimed']);
 </script>
 
 <style scoped></style>

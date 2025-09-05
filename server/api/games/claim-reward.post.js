@@ -21,6 +21,30 @@ export default defineEventHandler(async (event) => {
         return { ok: false, error: treasuryAccount.error };
     }
 
+    const optionVotes = await $fetch('/api/games/votes/load', {
+        params: {
+            session_id: body.id,
+        },
+    });
+
+    if (!optionVotes.ok) {
+        return { ok: false, error: optionVotes.error };
+    }
+
+    const optionVotesCount = optionVotes.data.length;
+
+    if (optionVotesCount === 0) {
+        return { ok: false, error: 'No votes' };
+    }
+
+    if (body.winners === 0) {
+        return { ok: false, error: 'No winners' };
+    }
+
+    const totalPrize = optionVotesCount * body.fee;
+
+    const reward = totalPrize / body.winners;
+
     const client = createClient(host);
 
     const args = [
@@ -29,14 +53,14 @@ export default defineEventHandler(async (event) => {
         body.checkForEnding,
     ];
 
-    const code = Pact.modules[config.MODULE_NAME]['claim-refund'](...args);
+    const code = Pact.modules[config.MODULE_NAME]['claim-player-reward'](...args);
 
     const pactTx = Pact.builder
         .execution(code)
         .addSigner(accountPubKey, (withCap) => [
             withCap('coin.GAS'),
             withCap(`${config.MODULE_NAME}.ACCOUNT_GUARD`, account),
-            withCap('coin.TRANSFER', treasuryAccount.data, account, { decimal: parseFloat(body.fee).toFixed(1)}),
+            withCap('coin.TRANSFER', treasuryAccount.data, account, { decimal: reward.toFixed(1)}),
         ])
         .setMeta({
             chainId: config.KADENA_CHAIN_ID,
@@ -64,8 +88,7 @@ export default defineEventHandler(async (event) => {
                 id: body.id,
             },
             data: {
-                invalidated: true,
-                creator_slashed: body.slashCreator,
+                result_voted: true,
             },
         });
 
@@ -76,7 +99,7 @@ export default defineEventHandler(async (event) => {
                 voter_account: account,
             },
             data: {
-                refunded: true,
+                redeemed_prize: true,
             },
         });
 

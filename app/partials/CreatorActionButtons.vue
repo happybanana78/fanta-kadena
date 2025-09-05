@@ -19,7 +19,7 @@
           :action="() => emit('show-options')"
       />
       <DefaultButton
-          v-if="(game.status.id === 'refunded_no_players' || game.status.id === 'refunded_no_quorum') && !game.creator_refunded"
+          v-if="(game.status.id === 'refunded_no_players' || game.status.id === 'refunded_no_quorum' || game.status.id === 'ended') && !game.creator_refunded"
           text="Unlock Funds"
           :scale="true"
           background-color="bg-red-700"
@@ -74,6 +74,7 @@ const unlockFunds = async () => {
         id: props.game.id,
         account: props.account,
         gasSettings: settingsStore.gas,
+        checkForEnding: props.game.status.id === 'ended',
       },
     });
 

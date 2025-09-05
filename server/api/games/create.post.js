@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
     const creatorAccount = parsed.account;
     const creatorPubKey = parsed.account.slice(2);
     const parsedDate = useParseDate({date: parsed.expiration, toIso: true});
-    const parsedFee = parseFloat(parsed.participation_fee.toFixed(1));
+    const parsedFee = parseFloat(parsed.participation_fee).toFixed(1);
 
     const gasSettings = body.gasSettings;
 
@@ -38,6 +38,8 @@ export default defineEventHandler(async (event) => {
         parsed.description,
         parsedDate,
         parsed.options.map(opt => opt.name),
+        [], // list of whitelisted accounts
+        { int: "-1" }, // max users (-1 stands for unlimited)
         { decimal: parsedFee },
         creatorAccount
     ];
@@ -65,6 +67,8 @@ export default defineEventHandler(async (event) => {
     if (isSignedTransaction(signedTx)) {
         const submitRes = await client.submit(signedTx);
         const listenRes = await client.listen({ requestKey: submitRes.requestKey });
+
+        console.log('gigi2', listenRes.result);
 
         if (listenRes.result.status !== 'success') {
             return { ok: false, error: listenRes.result.error };

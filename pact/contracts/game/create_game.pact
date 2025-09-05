@@ -5,6 +5,7 @@
 ;;
 ;; TODO: if user refuses result 3 times in a row all rewards get moved to treasury and account gets black-listed
 ;; TODO: add whitelist and max users on game creation
+;; TODO: if you are the first unlocking funds or claiming a reward more gas will be needed and you'll get a bonus for claiming first
 ;; --------------------------------------------------------------------
 
 (namespace 'free)
@@ -55,19 +56,22 @@
   ;; Schemas & Tables
   ;; ------------------------------------------------------------------
   (defschema session
-    creator-account:    string
-    name:               string
-    description:        string
-    expiration:         time       ;; when the creator is allowed to reveal
-    options:            [string]
-    correct:            integer    ;; index into options (-1 until reveal)
-    participation-fee:  decimal
-    result-voted:       bool
-    invalidated:        bool
-    creator-slashed:    bool
-    total-winners:      integer
-    result-released-at: time
-    created-at:         time
+    creator-account:     string
+    name:                string
+    description:         string
+    expiration:          time       ;; when the creator is allowed to reveal
+    options:             [string]
+    whitelisted:         [string]
+    correct:             integer    ;; index into options (-1 until reveal)
+    max-users:           integer
+    participation-fee:   decimal
+    result-voted:        bool
+    invalidated:         bool
+    invalidation-reason: string
+    creator-slashed:     bool
+    total-winners:       integer
+    result-released-at:  time
+    created-at:          time
   )
 
   (deftable sessions:{session})
@@ -101,6 +105,16 @@
   )
 
   (deftable creator-locked-balances:{creator-locked})
+
+  (defschema player-result-refusal
+    counter: integer
+  )
+
+  (deftable player-result-refusals:{player-result-refusal})
+
+  (defschema player-blacklist)
+
+  (deftable player-blacklisted-accounts:{player-blacklist})
 
   ;; ------------------------------------------------------------------
   ;; General Helpers
@@ -235,6 +249,8 @@
      description:string
      expiration:string
      options:[string]
+     whitelisted:[string]
+     max-users:integer
      participation-fee:decimal
      creator-account:string)
      @doc "Create a session. The caller provides their guard (`creator-ks`) so only they can reveal."
@@ -266,19 +282,22 @@
       })
 
     (write sessions session-id
-      { 'creator-account:    creator-account
-      , 'name:               name
-      , 'description:        description
-      , 'expiration:         (time expiration)
-      , 'options:            options
-      , 'correct:            -1
-      , 'participation-fee:  participation-fee
-      , 'result-voted:       false
-      , 'invalidated:        false
-      , 'creator-slashed:    false
-      , 'total-winners:      0
-      , 'result-released-at: (time "1990-09-01T00:00:00Z") ;; default time, counts as null
-      , 'created-at:         (now)
+      { 'creator-account:     creator-account
+      , 'name:                name
+      , 'description:         description
+      , 'expiration:          (time expiration)
+      , 'options:             options
+      , 'whitelisted:         whitelisted
+      , 'correct:             -1
+      , 'max-users:           max-users
+      , 'participation-fee:   participation-fee
+      , 'result-voted:        false
+      , 'invalidated:         false
+      , 'invalidation-reason: "none"
+      , 'creator-slashed:     false
+      , 'total-winners:       0
+      , 'result-released-at:  (time "1990-09-01T00:00:00Z") ;; default time, counts as null
+      , 'created-at:          (now)
       })
 
     (get-session session-id)
@@ -369,7 +388,7 @@
                 })
         true))
 
-  (defun handle-session-invalidation (session-id:string)
+  (defun handle-session-invalidation (session-id:string execute-ending-check:bool)
     @doc "Check if the game creator did or didn't publish a correct answer to the game session and to check if at least 1 player participated in the voting."
     
     (require-capability (INTERNAL))
@@ -388,7 +407,7 @@
           ;; Check if at least 1 player voted
           (if (<= (count-option-votes session-id) 0)
             (do
-              (update sessions session-id { 'invalidated: true })
+              (update sessions session-id { 'invalidated: true, 'invalidation-reason: "No votes" })
               "No votes, game refunded.")
 
             (do
@@ -397,27 +416,34 @@
                 "Creator has still time to publish.")
 
               ;; Check if game session creator submitted an answer
-              (enforce (= (at 'correct current-session) -1)
-                "Creator has published a result in time.")
+              (if (>= (at 'correct current-session) 0)
+                (do 
+                  (if (not execute-ending-check)
+                    "Creator has published a result in time."
+                    (with-capability (INTERNAL)
+                      (check-result-voting-ended session-id current-session))))
+                
+                ;; Slash creator funds and invalidate the game session
+                (do 
+                  (with-capability (INTERNAL)
+                    (slash-creator-funds session-id))
 
-              (with-capability (INTERNAL)
-                (slash-creator-funds session-id))
+                  (update sessions session-id { 
+                    'invalidated: true, 
+                    'invalidation-reason: "Result not published in time, creator slashed", 
+                    'creator-slashed: true 
+                  })
+                  
+                  "Game invalidated."))))))))
 
-              (update sessions session-id { 'invalidated: true, 'creator-slashed: true })
+  (defun check-result-voting-ended (session-id:string current-session:object{session})
+    @doc "Gets called to handle game session closure."
 
-              "Game invalidated."))))))
+    (require-capability (INTERNAL))
 
-  (defun check-result-voting-ended (session-id:string)
-    @doc "Function that gets called off-chain regularly to handle game session closure."
-
-    (let* ((current-session (get-session session-id)))
-      ;; Check if the game is already over
-      (enforce (and (not (at 'invalidated current-session)) (not (at 'result-voted current-session)))
-        "The game was already settled.")
-
-      ;; Check if result voting period is over
-      (enforce (<= (add-time (at 'result-released-at current-session) (days GRACE_DAYS)) (now))
-         "There is still time to vote."))
+    ;; Check if result voting period is over
+    (enforce (<= (add-time (at 'result-released-at current-session) (days GRACE_DAYS)) (now))
+      "There is still time to vote.")
 
     ;; Check if quorum is reached to proceed with the game reward distribution else refund
     (let ((total-option-votes (count-option-votes session-id))
@@ -426,7 +452,7 @@
       
       (if (< (/ (dec total-result-votes) (dec total-option-votes)) RESULT_VOTING_QUORUM)
           (do     
-            (update sessions session-id { 'invalidated: true })
+            (update sessions session-id { 'invalidated: true, 'invalidation-reason: "Quorum not reached" })
             "Quorum not reached.")
 
             ;; Check if the majority of users agree or not with the proposed result
@@ -440,14 +466,14 @@
                         "Voting successful.")
 
                       (do                
-                        (update sessions session-id { 'invalidated: true })
+                        (update sessions session-id { 'invalidated: true, 'invalidation-reason: "Result vote refused" })
                         "Result vote refused."))))))))
 
-  (defun claim-creator-funds (session-id:string)
+  (defun claim-creator-funds (session-id:string execute-ending-check:bool)
     @doc "Called off-chain by the game session creator to unlock his funds and get them back if game invalidation wasn't his fault or if the game ended successfully."
 
     (with-capability (INTERNAL)
-      (handle-session-invalidation session-id))
+      (handle-session-invalidation session-id execute-ending-check))
     
     (with-read creator-locked-balances session-id { 
       'amount := amount, 
@@ -469,11 +495,11 @@
         (update creator-locked-balances session-id { 'unlocked: true }))
     true))
 
-  (defun claim-refund (session-id:string voter-account:string)
+  (defun claim-refund (session-id:string voter-account:string execute-ending-check:bool)
     @doc "Called off-chain by the player to get a refund on an invalidated game session."
 
     (with-capability (INTERNAL)
-      (handle-session-invalidation session-id))
+      (handle-session-invalidation session-id execute-ending-check))
       
     (let ((key (make-vote-key session-id voter-account)) 
       (vote (try {} (read option_votes key))) 
@@ -495,8 +521,11 @@
               (update option_votes key { 'refunded: true })))
         true))
 
-  (defun claim-player-reward (session-id:string voter-account:string)
+  (defun claim-player-reward (session-id:string voter-account:string execute-ending-check:bool)
     @doc "Gets called off-chain by the player to handle player rewards distribution after locked period is over."
+
+    (with-capability (INTERNAL)
+      (handle-session-invalidation session-id execute-ending-check))
 
     (let* ((key (make-vote-key session-id voter-account))
       (vote (try {} (read option_votes key)))

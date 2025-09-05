@@ -101,8 +101,10 @@
           :account="currentAccount"
           :already-voted="alreadyVoted"
           :already-refunded="alreadyRefunded"
+          :is-winner="isWinner"
           @show-options="showOptions = true"
           @refund-claimed="init"
+          @reward-claimed="init"
       />
 
       <CreatorActionButtons
@@ -147,6 +149,8 @@ const walletStore = useWalletStore();
 
 const game = ref(null);
 
+const optionVote = ref(null);
+
 const mounting = ref(true);
 
 const loading = ref(true);
@@ -160,6 +164,8 @@ const alreadyVoted = ref(false);
 const alreadyVotedResult = ref(false);
 
 const alreadyRefunded = ref(false);
+
+const isWinner = ref(false);
 
 const loadGame = async () => {
   try {
@@ -190,9 +196,11 @@ const loadVote = async () => {
       return;
     }
 
+    optionVote.value = response.data;
+
     alreadyVoted.value = true;
 
-    if (response.data.refunded) {
+    if (optionVote.value.refunded) {
       alreadyRefunded.value = true;
     }
   } catch (error) {
@@ -232,6 +240,11 @@ const init = async () => {
 
   if (game.value.creator_account !== currentAccount.value) {
     await loadVote();
+
+    if (game.value.correct >= 0 && game.value.correct === optionVote.value.option) {
+      isWinner.value = true;
+    }
+
     await loadResultVote();
   }
 

@@ -25,6 +25,7 @@ export default defineEventHandler(async (event) => {
 
     const args = [
         body.id,
+        body.checkForEnding,
     ];
 
     const code = Pact.modules[config.MODULE_NAME]['claim-creator-funds'](...args);
